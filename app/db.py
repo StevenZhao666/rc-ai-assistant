@@ -97,6 +97,7 @@ APPROVED_FIELDS = {
     "question", "answer", "category", "source", "source_url", "source_type",
     "note", "status", "ttl_type", "audience", "owner", "reviewer",
     "verified_at", "valid_until", "warnings", "locked_until", "version",
+    "needs_recheck",
 }
 
 LOCK_MINUTES = 30
@@ -122,7 +123,8 @@ def _migrate(conn) -> None:
     """给老库补列（CREATE TABLE IF NOT EXISTS 不会改已存在的表）。"""
     cols = {r[1] for r in conn.execute("PRAGMA table_info(kb_item)").fetchall()}
     for name, decl in (("owner", "TEXT"), ("locked_until", "TEXT"),
-                       ("version", "INTEGER NOT NULL DEFAULT 1")):
+                       ("version", "INTEGER NOT NULL DEFAULT 1"),
+                       ("needs_recheck", "INTEGER NOT NULL DEFAULT 0")):
         if name not in cols:
             conn.execute(f"ALTER TABLE kb_item ADD COLUMN {name} {decl}")
 
@@ -350,7 +352,40 @@ def review_stats() -> dict:
         cand = dict(conn.execute(
             "SELECT status, COUNT(*) FROM candidate GROUP BY status").fetchall())
         logs = conn.execute("SELECT COUNT(*) FROM review_log").fetchone()[0]
-    return {"by_status": by_status, "candidates": cand, "review_logs": logs}
+        recheck = conn.execute(
+            "SELECT COUNT(*) FROM kb_item WHERE status='published' AND needs_recheck=1").fetchone()[0]
+    return {"by_status": by_status, "candidates": cand, "review_logs": logs, "recheck": recheck}
+
+
+def mark_recheck_all() -> int:
+    """把现有已发布条目全部标成「待复核」——不影响检索，只是排队等人看一遍。"""
+    with connect(write=True) as conn:
+        cur = conn.execute(
+            "UPDATE kb_item SET needs_recheck = 1 WHERE status = 'published'")
+        conn.commit()
+        return cur.rowcount
+
+
+def list_recheck(limit: int = 500) -> list[dict]:
+    """待复核队列，按风险排序：有告警 > 非官方来源 > 年度型 > 其他旧条目。"""
+    sql = """
+        SELECT * FROM kb_item
+        WHERE status = 'published' AND needs_recheck = 1
+        ORDER BY
+          CASE WHEN warnings IS NOT NULL AND warnings NOT IN ('', '[]') THEN 0 ELSE 1 END,
+          CASE WHEN source_type IS NULL OR source_type != 'official' THEN 0 ELSE 1 END,
+          CASE WHEN ttl_type = 'B' THEN 0 ELSE 1 END,
+          id
+        LIMIT ?
+    """
+    with connect() as conn:
+        rows = [dict(r) for r in conn.execute(sql, (limit,)).fetchall()]
+    for d in rows:
+        try:
+            d["warnings"] = json.loads(d.get("warnings") or "[]")
+        except Exception:
+            d["warnings"] = []
+    return rows
 
 
 def claim_item(item_id: int, reviewer: str) -> tuple[bool, dict | None]:
@@ -390,7 +425,11 @@ def decide_item(item_id: int, action: str, reviewer: str, note: str = "",
 
     fields = dict(patch or {})
     if action == "approve":
-        fields.update(status="published", verified_at=date.today().isoformat(), reviewer=reviewer)
+        fields.update(status="published", verified_at=date.today().isoformat(),
+                      reviewer=reviewer, needs_recheck=0)
+    elif action == "verify":
+        # 复核通过：条目本来就在线上，只清标记、记核实日期
+        fields.update(verified_at=date.today().isoformat(), reviewer=reviewer, needs_recheck=0)
     elif action == "reject":
         fields.update(status="draft")
     elif action == "archive":

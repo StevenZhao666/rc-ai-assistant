@@ -26,20 +26,34 @@ app.include_router(review_router)
 
 _state: dict = {"retriever": None, "count": 0}
 
-# 每 IP 每小时提问上限。公网测试阶段必须开着，否则一个脚本就能把额度刷光。
-ASK_LIMIT = int(os.environ.get("ASK_LIMIT_PER_HOUR", "60"))
-_buckets: dict[str, deque] = {}
+# 每 IP 每小时配额：前 10 次走模型，接下来 20 次只做资料摘录（不花钱），再往后拒绝。
+ASK_LIMIT = int(os.environ.get("ASK_LIMIT_PER_HOUR", "10"))
+BASIC_LIMIT = int(os.environ.get("ASK_BASIC_LIMIT_PER_HOUR", "20"))
+_buckets: dict[str, dict] = {}
 
 
-def _allow(key: str) -> bool:
+def _quota(key: str) -> tuple[int, int]:
+    """返回 (还能用模型的次数, 还能用基础模式的次数)，顺手清理一小时前的记录。"""
     now = time.time()
-    dq = _buckets.setdefault(key, deque())
-    while dq and now - dq[0] > 3600:
-        dq.popleft()
-    if len(dq) >= ASK_LIMIT:
-        return False
-    dq.append(now)
-    return True
+    b = _buckets.setdefault(key, {"llm": deque(), "basic": deque()})
+    for name in ("llm", "basic"):
+        dq = b[name]
+        while dq and now - dq[0] > 3600:
+            dq.popleft()
+    return max(0, ASK_LIMIT - len(b["llm"])), max(0, BASIC_LIMIT - len(b["basic"]))
+
+
+def _allow(key: str) -> str:
+    """llm / basic / none"""
+    llm_left, basic_left = _quota(key)
+    b = _buckets[key]
+    if llm_left > 0:
+        b["llm"].append(time.time())
+        return "llm"
+    if basic_left > 0:
+        b["basic"].append(time.time())
+        return "basic"
+    return "none"
 
 
 def reload_kb() -> int:
@@ -65,7 +79,9 @@ class AskIn(BaseModel):
 
 @app.get("/health")
 def health() -> dict:
-    return {"ok": True, "model": "llm" if (config.LLM_BASE and config.LLM_KEY) else "extractive"}
+    return {"ok": True,
+            "model": "llm" if (config.LLM_BASE and config.LLM_KEY) else "extractive",
+            "limits": {"llm_per_hour": ASK_LIMIT, "basic_per_hour": BASIC_LIMIT}}
 
 
 @app.get("/api/me")
@@ -88,13 +104,23 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
     if len(q) > 300:
         q = q[:300]
 
-    # 公网暴露后必须限流：模型按 token 计费，被刷就是真金白银
-    ip = request.client.host if request.client else "?"
-    if not _allow(ip):
-        raise HTTPException(429, f"问得太快了，每小时最多 {ASK_LIMIT} 次。稍等一会儿再问，或直接联系书院办公室。")
+    # 公网走隧道时，所有请求的 client.host 都是 127.0.0.1——必须看真实来源 IP，
+    # 否则全世界的用户共用一个桶，第 11 个人就被降级了。
+    ip = (request.headers.get("cf-connecting-ip")
+          or (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+          or (request.client.host if request.client else "?"))
+    tier = _allow(ip)
+    if tier == "none":
+        raise HTTPException(429, f"这个小时已经用完（{ASK_LIMIT} 次 AI 回答 + {BASIC_LIMIT} 次资料摘录）。"
+                                 "过一会儿再来，或直接联系书院办公室 8822 9520。")
+    limit_notice = ""
+    if tier == "basic":
+        limit_notice = ("（本小时的 AI 回答次数已用完，下面改为直接从书院资料里摘录原文，"
+                        "不再调用模型，所以可能不够完整。）\n\n")
 
     hits = _state["retriever"].search(q, k=body.top_k)
-    result = answer_mod.answer(q, hits)
+    result = answer_mod.answer(q, hits, allow_llm=(tier == "llm"))
+    result["text"] = limit_notice + result["text"]
     db.log_qa(user.student_id, q, result["text"], hits[0]["score"] if hits else 0.0)
 
     # 只展示模型真正用到的条目，避免「答案说 A、引用写 B」
@@ -121,6 +147,7 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
         "mode": result["mode"],
         "citations": cites,
         "user": user.student_id,
+        "quota": dict(zip(("llm_left", "basic_left"), _quota(ip))),
     }
 
 

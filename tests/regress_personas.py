@@ -3,8 +3,11 @@ import json
 import re
 import sys
 import urllib.request
+import uuid
 
 BASE = "http://127.0.0.1:8001/api/ask"
+def _test_ip() -> str:
+    return f"203.0.113.{uuid.uuid4().int % 250 + 1}"
 
 CASES = [
     # (问句, 期望 mode 前缀, 必须出现 / 不得出现)  —— 断言前统一转简体，避免字形误判
@@ -30,7 +33,7 @@ CASES = [
 
 def ask(q):
     req = urllib.request.Request(BASE, data=json.dumps({"question": q}).encode(),
-                                 headers={"Content-Type": "application/json"})
+                                 headers={"Content-Type": "application/json", "CF-Connecting-IP": _test_ip()})
     with urllib.request.urlopen(req, timeout=90) as r:
         return json.loads(r.read())
 

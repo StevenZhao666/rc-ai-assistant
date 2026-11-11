@@ -85,6 +85,7 @@
 
 <nav>
   <button data-tab="queue" class="on">待审队列 <span class="count" id="cQueue">0</span></button>
+  <button data-tab="recheck">待复核 <span class="count" id="cRecheck">0</span></button>
   <button data-tab="new">新资料 <span class="count" id="cCand">0</span></button>
   <button data-tab="gaps">缺口清单</button>
 </nav>
@@ -132,6 +133,25 @@
         <div class="empty" id="queueEmpty" hidden>没有符合条件的条目</div>
       </div>
       <div class="card panel" id="panel"><div class="empty">点左边任意一条开始审</div></div>
+    </div>
+  </section>
+
+  <!-- 待复核 -->
+  <section id="tab-recheck" hidden>
+    <div class="bar">
+      <span class="hint">这些条目<b>还在照常回答学生</b>，只是没经过人工核对。按风险排序，从上往下批。</span>
+      <button class="act" id="btnReloadRc">刷新</button>
+    </div>
+    <div class="layout">
+      <div class="card" style="overflow:auto;max-height:calc(100vh - 220px)">
+        <table>
+          <thead><tr><th style="width:44px">#</th><th>问题</th><th style="width:100px">分类</th>
+            <th style="width:120px">为什么排前面</th><th style="width:90px">核实日期</th></tr></thead>
+          <tbody id="rcRows"></tbody>
+        </table>
+        <div class="empty" id="rcEmpty" hidden>全部复核完了</div>
+      </div>
+      <div class="card panel" id="rcPanel"><div class="empty">点左边一条开始复核</div></div>
     </div>
   </section>
 
@@ -197,9 +217,12 @@ $("#saveWho").onclick = () => { S.who = $("#who").value.trim(); localStorage.set
 // ── tab ──
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on", x===b));
-  ["queue","new","gaps"].forEach(t => $("#tab-"+t).hidden = (t !== b.dataset.tab));
+  ["queue","recheck","new","gaps"].forEach(t => $("#tab-"+t).hidden = (t !== b.dataset.tab));
   S.tab = b.dataset.tab;
-  if(S.tab==="queue") loadQueue(); if(S.tab==="new") loadCands(); if(S.tab==="gaps") loadGaps();
+  if(S.tab==="queue") loadQueue();
+  if(S.tab==="recheck") loadRecheck();
+  if(S.tab==="new") loadCands();
+  if(S.tab==="gaps") loadGaps();
 });
 
 // ── 队列 ──
@@ -222,13 +245,13 @@ async function loadQueue(){
 
 const statusName = s => ({review:"待审",draft:"草稿",published:"已发布",archived:"已归档",expired:"已过期"}[s]||s);
 
-async function openItem(id){
+async function openItem(id, target = "#panel"){
   S.cur = id;
-  document.querySelectorAll("#rows tr").forEach(tr=>tr.classList.toggle("sel", +tr.dataset.id===id));
+  document.querySelectorAll("#rows tr, #rcRows tr").forEach(tr=>tr.classList.toggle("sel", +tr.dataset.id===id));
   const d = await api("/api/review/item/"+id);
   S.item = d.item; S.version = d.item.version || 1;
   const it = d.item, w = (it.warnings||[]);
-  $("#panel").innerHTML = `
+  $(target).innerHTML = `
     <h3>#${it.id} <span class="pill ${it.status}">${statusName(it.status)}</span>
         <span class="pill">v${it.version||1}</span></h3>
     ${it.owner?`<div class="hint">认领人：${esc(it.owner)}（30 分钟无操作自动释放）</div>`:""}
@@ -249,8 +272,9 @@ async function openItem(id){
     </div>
     <div class="fld"><label>审批备注（退回时必填）</label><input type="text" id="eNote" placeholder="例如：数字与官网不一致"></div>
     <div class="bar" style="margin:4px 0 0">
+      ${it.needs_recheck?`<button class="act ok" id="bVerify">确认无误</button>`:""}
       <button class="act primary" id="bSave">保存修改</button>
-      <button class="act ok" id="bOk">通过并发布</button>
+      ${it.status !== "published" ? `<button class="act ok" id="bOk">通过并发布</button>` : ""}
       <button class="act bad" id="bRej">退回</button>
       <button class="act" id="bArc">归档</button>
       ${it.owner?`<button class="act" id="bRel">释放</button>`:`<button class="act" id="bClaim">认领</button>`}
@@ -269,8 +293,9 @@ async function openItem(id){
       loadQueue(); openItem(it.id);
     }catch(e){ toast(e.message, true); }
   };
+  if($("#bVerify")) $("#bVerify").onclick = () => decide("verify");
   $("#bSave").onclick = () => decide("edit");
-  $("#bOk").onclick   = () => decide("approve");
+  if($("#bOk")) $("#bOk").onclick = () => decide("approve");
   $("#bRej").onclick  = () => { if(!$("#eNote").value.trim()) return toast("退回要写理由", true); decide("reject"); };
   $("#bArc").onclick  = () => decide("archive");
   if($("#bClaim")) $("#bClaim").onclick = async () => {
@@ -327,6 +352,27 @@ async function loadCats(){
   $("#fCat").innerHTML = `<option value="">全部分类</option>` +
     d.categories.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}（${c.n}）</option>`).join("");
 }
+
+// ── 待复核 ──
+async function loadRecheck(){
+  const d = await api("/api/review/recheck");
+  $("#cRecheck").textContent = d.count;
+  $("#rcEmpty").hidden = d.count > 0;
+  $("#rcRows").innerHTML = d.items.map(it => {
+    const why = [];
+    if((it.warnings||[]).length) why.push("有告警");
+    if(it.source_type && it.source_type !== "official") why.push("非官方来源");
+    if(it.ttl_type === "B") why.push("年度信息");
+    return `<tr class="row" data-id="${it.id}">
+      <td>${it.id}</td>
+      <td>${esc(it.question).slice(0,74)}</td>
+      <td>${esc(it.category||"—")}</td>
+      <td>${why.length?`<span class="pill review">${why.join("·")}</span>`:`<span class="pill">常规</span>`}</td>
+      <td class="hint">${esc(it.verified_at||"—")}</td></tr>`;
+  }).join("");
+  document.querySelectorAll("#rcRows tr").forEach(tr => tr.onclick = () => openItem(+tr.dataset.id, "#rcPanel"));
+}
+$("#btnReloadRc").onclick = loadRecheck;
 
 // ── 新资料 ──
 async function loadCands(){
@@ -413,7 +459,7 @@ async function loadGaps(){
   await loadCats().catch(()=>{});
   await loadQueue().catch(e=>{ $("#panel").innerHTML = `<div class="empty">${esc(e.message)}<br>先在右上角填审核人</div>`; });
   const st = await api("/api/review/stats").catch(()=>null);
-  if(st) $("#cQueue").textContent = (st.by_status.review||0);
+  if(st){ $("#cQueue").textContent = (st.by_status.review||0); $("#cRecheck").textContent = (st.recheck||0); }
 })();
 </script>
 </body>

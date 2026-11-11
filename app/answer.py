@@ -163,7 +163,7 @@ def _log_usage(model: str, usage: dict) -> None:
         pass
 
 
-def answer(question: str, hits: list[dict]) -> dict:
+def answer(question: str, hits: list[dict], allow_llm: bool = True) -> dict:
     lang = i18n.detect_lang(question)
 
     # 一、越界问题（急救、医疗、代写、情绪、人身安全）：不检索，直接给专用话术
@@ -199,7 +199,8 @@ def answer(question: str, hits: list[dict]) -> dict:
             "text": i18n.link_only(lang, top["source_url"]),
         }
 
-    res = _llm(question, hits) or _extractive(question, hits)
+    # allow_llm=False：本小时模型额度用完了，只做资料摘录，一分钱不花
+    res = (_llm(question, hits) if allow_llm else None) or _extractive(question, hits)
 
     # B 类（年度型）：只有问题本身在问年度性信息时才加前缀，
     # 否则「有没有钢琴」命中了 B 条目也会挂一句学年提示，很怪。

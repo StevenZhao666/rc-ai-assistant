@@ -143,6 +143,22 @@ def bulk(body: BulkIn, request: Request) -> dict:
     return {"ok": True, "done": done, "skipped": skipped}
 
 
+@router.get("/api/review/recheck")
+def recheck(request: Request) -> dict:
+    """待复核队列：不中断服务，只是排队等标注。"""
+    _reviewer(request)
+    items = db.list_recheck()
+    return {"items": items, "count": len(items)}
+
+
+@router.post("/api/review/recheck/mark-all")
+def mark_all(request: Request) -> dict:
+    who = _reviewer(request)
+    n = db.mark_recheck_all()
+    db.log_review(None, "mark_recheck", who, f"批量标记 {n} 条待复核")
+    return {"ok": True, "marked": n}
+
+
 @router.get("/api/review/stats")
 def stats(request: Request) -> dict:
     _reviewer(request)

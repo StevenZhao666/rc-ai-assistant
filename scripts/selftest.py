@@ -8,6 +8,7 @@
 import json
 import sys
 import urllib.request
+import uuid
 
 from opencc import OpenCC
 
@@ -15,11 +16,16 @@ BASE = sys.argv[1] if len(sys.argv) > 1 else "http://127.0.0.1:8001"
 _cc = OpenCC("t2s")
 
 
+def _test_ip() -> str:
+    """每次请求换一个来源 IP，避免测试自己把自己限流。"""
+    return f"203.0.113.{uuid.uuid4().int % 250 + 1}"
+
+
 def ask(q: str) -> dict:
     req = urllib.request.Request(
         BASE + "/api/ask",
         data=json.dumps({"question": q}).encode(),
-        headers={"Content-Type": "application/json"},
+        headers={"Content-Type": "application/json", "CF-Connecting-IP": _test_ip()},
     )
     with urllib.request.urlopen(req, timeout=60) as r:
         d = json.loads(r.read())
