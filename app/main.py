@@ -66,17 +66,21 @@ def ask(body: AskIn, user: User = Depends(get_current_user)) -> dict:
 
     # 只展示模型真正用到的条目，避免「答案说 A、引用写 B」
     all_cites = answer_mod.citations(hits) if hits else []
-    used = result.get("used") or []
-    cites = [all_cites[i - 1] for i in used if 0 < i <= len(all_cites)]
+    used = sorted({i for i in (result.get("used") or []) if 0 < i <= len(all_cites)})
+    cites = [all_cites[i - 1] for i in used]
 
     # 基础档案（楼栋、成立年份、地址电话这类）不挂"依据"卡片：
     # 这些是书院自己的身份信息，学生不需要看条款，来源仍留在库里可查
     if cites and all(c.get("category") == "书院基础档案" for c in cites):
         cites = []
 
-    # 没有引用卡片时，把正文里的 [1] 标记也去掉，免得学生找不到对应的"依据"
+    # 正文里的 [n] 是检索片段序号，不是卡片序号：模型常写 [3] 而只返回 1 张卡。
+    # 这里统一重编号成 1..k，找不到对应卡片的标记直接删掉。
     text = result["text"]
-    if not cites:
+    if cites:
+        remap = {old: new for new, old in enumerate(used, start=1)}
+        text = re.sub(r"\[(\d+)\]", lambda m: f"[{remap[int(m.group(1))]}]" if int(m.group(1)) in remap else "", text)
+    else:
         text = re.sub(r"\s*\[\d+\]", "", text)
 
     return {

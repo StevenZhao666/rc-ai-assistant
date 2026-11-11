@@ -13,6 +13,7 @@ import urllib.request
 from datetime import datetime
 
 from . import config
+from . import i18n
 from .profile import context_block
 
 # 只服务张昆仑书院。学生问到别的书院时必须明确划界，不能拿本院规定冒充。
@@ -20,6 +21,11 @@ OTHER_COLLEGES = (
     "蔡繼有", "蔡继有", "曹光彪", "鄭裕彤", "郑裕彤", "霍英東", "霍英东",
     "呂志和", "吕志和", "馬萬祺", "马万祺", "滿珍", "满珍", "何鴻燊", "何鸿燊",
     "紹邦", "绍邦",
+    # 英文提问时同样要划界（测试里英文问「another college」被当成普通未知问题）
+    "cytc", "ckpc", "cytc", "lcc", "shc", "mcm", "spc", "mmk", "cky",
+    "choi kai yau", "cheng yu tung", "lui che woo", "stanley ho",
+    "pearl jubilee", "moon chun memorial", "shiu pong", "chao kuang piu",
+    "another college", "other college", "other hall", "another hall",
 )
 
 # 只有这些话题才需要加「适用于 2026/27 学年」前缀，避免换房、查成绩这类也被加
@@ -27,45 +33,47 @@ ANNUAL_HINTS = ("每年", "學年", "学年", "年度", "截止", "暑期", "費
                 "住宿費", "住宿费", "續住", "续住", "申請時間", "申请时间")
 
 # 这些不该由"书院规章问答"来答：要么违规，要么需要真人。
-# 命中就走专用话术，不检索、不生成。
+# 命中就走专用话术（按提问语言出三套文案），不检索、不生成。
 SAFETY_RULES = [
     (
-        ("写论文", "写作业", "代写", "帮我写", "essay", "assignment", "report 代写"),
-        "policy_academic",
-        "这类我不做：代写作业或论文属于学术不端，书院和学校对此有明确规定。\n"
-        "我可以帮的：解释规章原文、告诉你表格在哪、指路到学习支援"
-        "（图书馆、RC Academic Tutorial、CTLE 的写作支持）。",
+        ("火警", "火災", "火灾", "走火", "急救", "急診", "急诊", "救护车", "救護車",
+         "急救电话", "999", "110", "119", "救命", "晕倒", "暈倒", "流血不止",
+         "fire alarm", "ambulance", "emergency"),
+        "emergency",
     ),
     (
-        ("心情", "抑郁", "焦虑", "想死", "自杀", "撑不住", "压力大", "崩溃"),
-        "policy_wellbeing",
-        "这类事情不适合由问答机器人处理，但可以说清楚去哪找人：\n"
-        f"· 书院办公室 / 驻院社工：{config.OFFICE_ROOM}｜{config.OFFICE_PHONE}，可以帮你约谈\n"
-        "· 学生事务部（SAO）有辅导服务\n"
-        "如果当下有紧急危险，请立刻拨澳门紧急电话 999，或联系书院保安。",
+        ("吃什么药", "吃什麼藥", "食咩藥", "用药", "用藥", "药物", "藥物", "剂量", "劑量",
+         "发烧", "發燒", "咳嗽", "看医生", "看醫生", "medicine", "dosage", "symptoms"),
+        "medical",
     ),
     (
-        ("报警", "偷东西", "偷我", "被偷", "失窃", "丢东西", "打架", "受伤",
-         "看医生", "医疗", "法律", "起诉"),
-        "policy_safety",
-        "这类涉及人身或财物安全的情况，请直接找真人处理：\n"
-        "· 紧急：999（澳门）\n"
-        f"· 书院保安 / 办公室：{config.OFFICE_ROOM}｜{config.OFFICE_PHONE}\n"
-        "· 财物失窃建议同时报警并通知书院办公室备案。\n"
-        "我不提供法律或医疗建议。",
+        ("写论文", "写作业", "代写", "帮我写", "寫論文", "寫作業", "代寫", "幫我寫",
+         "essay", "assignment"),
+        "academic",
+    ),
+    (
+        ("心情", "抑郁", "抑鬱", "焦虑", "焦慮", "想死", "自杀", "自殺", "撑不住", "撐不住",
+         "压力大", "壓力大", "崩溃", "崩潰", "活着没意思", "活著沒意思"),
+        "wellbeing",
+    ),
+    (
+        ("报警", "報警", "偷东西", "偷東西", "偷我", "被偷", "失窃", "失竊", "丢东西",
+         "打架", "受伤", "受傷", "法律", "起诉", "起訴", "律师", "律師"),
+        "safety",
     ),
 ]
 
+# 只有问题本身在问"活动/通知"时才走 link_only。
+# 之前只要命中一条 C 类条目就只给链接，导致「書院內禁止賭博嗎」「check-in 到幾點」被误判。
+ACTIVITY_HINTS = ("活動", "活动", "通知", "最近", "近期", "最新", "有咩",
+                  "event", "events", "news", "calendar")
 
-def _fallback() -> dict:
+
+def _fallback(lang: str) -> dict:
     return {
         "mode": "fallback",
         "used": [],
-        "text": (
-            "这个问题我在书院资料里没有找到确切答案，不敢乱答。\n\n"
-            f"建议直接联系书院办公室：{config.OFFICE_ROOM}｜{config.OFFICE_PHONE}｜{config.OFFICE_EMAIL}\n"
-            f"办公时间：{config.OFFICE_HOURS}"
-        ),
+        "text": i18n.fallback(lang),
     }
 
 
@@ -97,6 +105,7 @@ def _llm(question: str, hits: list[dict]) -> dict | None:
         "资料里没有的就说不知道，并给出办公室联系方式。"
         "不要编造，不要补充资料以外的内容。"
         "回答语言必须与提问一致：简体提问用简体回答，繁体提问用繁体，英文提问用英文；"
+        "用粤语口语提问（唔、嘅、喺、咗、邊度）时，用繁体中文回答，不要转成简体；"
         "不要把资料里的繁体原文整段照抄进简体回答。"
         "凡是用到某条资料，必须在对应句子末尾标注编号，例如 [1] 或 [2]；"
         "没用到就不要标，也不许标资料里不存在的编号。"
@@ -155,39 +164,39 @@ def _log_usage(model: str, usage: dict) -> None:
 
 
 def answer(question: str, hits: list[dict]) -> dict:
-    # 一、越界问题（代写、情绪、人身安全）：不检索，直接给专用话术
-    for triggers, mode, text in SAFETY_RULES:
-        if any(t in question for t in triggers):
-            return {"mode": mode, "text": text, "used": []}
+    lang = i18n.detect_lang(question)
+
+    # 一、越界问题（急救、医疗、代写、情绪、人身安全）：不检索，直接给专用话术
+    for triggers, kind in SAFETY_RULES:
+        if any(t in question.lower() if t.isascii() else t in question for t in triggers):
+            # 火警演习、急救箱位置这类不是真紧急，不该触发"立刻拨 999"
+            if kind == "emergency" and any(x in question for x in
+                                           ("演習", "演习", "drill", "急救箱", "急救課程",
+                                            "急救课程", "AED", "AED機")):
+                continue
+            return {"mode": f"policy_{kind}", "text": i18n.policy(kind, lang), "used": []}
 
     # 二、问到别的书院：明确划界，不拿本院规定冒充
     if any(c in question for c in OTHER_COLLEGES):
         return {
             "mode": "out_of_scope",
-            "text": (
-                "我只收录了张昆仑书院（CKLC）的资料，其他书院的规定可能不一样，不能拿本院的答案套过去。\n"
-                "建议直接联系对应书院办公室，或查看澳大书院系统总站：https://rc.um.edu.mo/"
-            ),
+            "text": i18n.out_of_scope(lang),
             "used": [],
         }
 
     if not hits or hits[0]["score"] < config.MIN_SCORE:
-        return _fallback()
+        return _fallback(lang)
 
     top = hits[0]
 
     # C 类（活动/通知/截止日期）：只给入口，不转述。
-    # 理由：这类内容今天对、明天错，转述的代价远大于给个链接。
-    if top.get("ttl_type") == "C" and top.get("source_url"):
+    # 但必须问题本身在问活动——否则「书院禁止赌博吗」命中 C 条目也会被塞一条新闻链接。
+    if (top.get("ttl_type") == "C" and top.get("source_url")
+            and any(h in question for h in ACTIVITY_HINTS)):
         return {
             "mode": "link_only",
             "used": [1],
-            "text": (
-                "这类信息变动很快（活动、通知、截止日期），我不做转述，只给入口：\n"
-                f"{top['source_url']}\n\n"
-                "需要确切日期的话，直接问书院办公室更快："
-                f"{config.OFFICE_ROOM}｜{config.OFFICE_PHONE}"
-            ),
+            "text": i18n.link_only(lang, top["source_url"]),
         }
 
     res = _llm(question, hits) or _extractive(question, hits)
