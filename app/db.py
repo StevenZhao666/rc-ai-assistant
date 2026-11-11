@@ -7,7 +7,7 @@
 """
 import json
 import sqlite3
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from . import config
@@ -65,7 +65,41 @@ CREATE TABLE IF NOT EXISTS feedback (
     note       TEXT,
     mode       TEXT
 );
+
+-- 审批留痕：谁、什么时候、把哪条、从什么改成什么
+CREATE TABLE IF NOT EXISTS review_log (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    ts       TEXT NOT NULL,
+    item_id  INTEGER,
+    action   TEXT NOT NULL,      -- approve/reject/edit/create/expire
+    reviewer TEXT,
+    note     TEXT,
+    before   TEXT,               -- JSON：改前快照
+    after    TEXT                -- JSON：改后快照
+);
+
+-- 新资料候选：从官网抓回来的原始材料，还没变成问答条目
+CREATE TABLE IF NOT EXISTS candidate (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    url        TEXT NOT NULL,
+    title      TEXT,
+    text       TEXT,
+    source     TEXT,
+    status     TEXT NOT NULL DEFAULT 'new',   -- new/accepted/rejected
+    created_at TEXT,
+    reviewer   TEXT,
+    note       TEXT,
+    item_id    INTEGER           -- 采纳后生成的 kb_item.id
+);
 """
+
+APPROVED_FIELDS = {
+    "question", "answer", "category", "source", "source_url", "source_type",
+    "note", "status", "ttl_type", "audience", "owner", "reviewer",
+    "verified_at", "valid_until", "warnings", "locked_until", "version",
+}
+
+LOCK_MINUTES = 30
 
 
 def connect(write: bool = False) -> sqlite3.Connection:
@@ -80,7 +114,17 @@ def connect(write: bool = False) -> sqlite3.Connection:
 def init_db() -> None:
     with connect(write=True) as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         conn.commit()
+
+
+def _migrate(conn) -> None:
+    """给老库补列（CREATE TABLE IF NOT EXISTS 不会改已存在的表）。"""
+    cols = {r[1] for r in conn.execute("PRAGMA table_info(kb_item)").fetchall()}
+    for name, decl in (("owner", "TEXT"), ("locked_until", "TEXT"),
+                       ("version", "INTEGER NOT NULL DEFAULT 1")):
+        if name not in cols:
+            conn.execute(f"ALTER TABLE kb_item ADD COLUMN {name} {decl}")
 
 
 def published_items() -> list[dict]:
@@ -154,3 +198,210 @@ def bad_feedback(limit: int = 30) -> list[dict]:
     """
     with connect() as conn:
         return [dict(r) for r in conn.execute(sql, (limit,)).fetchall()]
+
+
+# ── 审批相关 ────────────────────────────────────────────────────────
+
+def list_items(status: str | None = None, q: str = "", limit: int = 300) -> list[dict]:
+    sql = "SELECT * FROM kb_item WHERE 1=1"
+    args: list = []
+    if status:
+        sql += " AND status = ?"
+        args.append(status)
+    if q:
+        sql += " AND (question LIKE ? OR answer LIKE ? OR category LIKE ?)"
+        args += [f"%{q}%"] * 3
+    sql += " ORDER BY CASE status WHEN 'review' THEN 0 WHEN 'draft' THEN 1 WHEN 'published' THEN 2 ELSE 3 END, id"
+    sql += " LIMIT ?"
+    args.append(limit)
+    with connect() as conn:
+        rows = [dict(r) for r in conn.execute(sql, args).fetchall()]
+    for d in rows:
+        try:
+            d["warnings"] = json.loads(d.get("warnings") or "[]")
+        except Exception:
+            d["warnings"] = []
+    return rows
+
+
+def get_item(item_id: int) -> dict | None:
+    with connect() as conn:
+        r = conn.execute("SELECT * FROM kb_item WHERE id = ?", (item_id,)).fetchone()
+    if not r:
+        return None
+    d = dict(r)
+    try:
+        d["warnings"] = json.loads(d.get("warnings") or "[]")
+    except Exception:
+        d["warnings"] = []
+    return d
+
+
+def update_item(item_id: int, patch: dict) -> dict | None:
+    """只允许改白名单字段；回来后返回新快照。"""
+    fields = {k: v for k, v in patch.items() if k in APPROVED_FIELDS}
+    if not fields:
+        return get_item(item_id)
+    if isinstance(fields.get("warnings"), (list, dict)):
+        fields["warnings"] = json.dumps(fields["warnings"], ensure_ascii=False)
+    sets = ", ".join(f"{k} = ?" for k in fields)
+    with connect(write=True) as conn:
+        conn.execute(f"UPDATE kb_item SET {sets} WHERE id = ?", (*fields.values(), item_id))
+        conn.commit()
+    return get_item(item_id)
+
+
+def create_item(fields: dict) -> int:
+    data = {k: v for k, v in fields.items() if k in APPROVED_FIELDS}
+    data.setdefault("status", "review")
+    data.setdefault("ttl_type", "A")
+    data.setdefault("audience", "all")
+    data.setdefault("source_type", "official")
+    data.setdefault("created_at", datetime.now().isoformat(timespec="seconds"))
+    cols = ", ".join(data)
+    marks = ", ".join("?" * len(data))
+    with connect(write=True) as conn:
+        cur = conn.execute(f"INSERT INTO kb_item ({cols}) VALUES ({marks})", tuple(data.values()))
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def log_review(item_id: int | None, action: str, reviewer: str, note: str = "",
+               before: dict | None = None, after: dict | None = None) -> None:
+    with connect(write=True) as conn:
+        conn.execute(
+            "INSERT INTO review_log (ts, item_id, action, reviewer, note, before, after)"
+            " VALUES (?,?,?,?,?,?,?)",
+            (datetime.now().isoformat(timespec="seconds"), item_id, action, reviewer, note,
+             json.dumps(before, ensure_ascii=False) if before else None,
+             json.dumps(after, ensure_ascii=False) if after else None),
+        )
+        conn.commit()
+
+
+def item_history(item_id: int, limit: int = 50) -> list[dict]:
+    with connect() as conn:
+        rows = conn.execute(
+            "SELECT * FROM review_log WHERE item_id = ? ORDER BY id DESC LIMIT ?",
+            (item_id, limit),
+        ).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        for k in ("before", "after"):
+            try:
+                d[k] = json.loads(d[k]) if d[k] else None
+            except Exception:
+                d[k] = None
+        out.append(d)
+    return out
+
+
+def recent_log(limit: int = 20) -> list[dict]:
+    with connect() as conn:
+        return [dict(r) for r in conn.execute(
+            "SELECT id, ts, item_id, action, reviewer, note FROM review_log ORDER BY id DESC LIMIT ?",
+            (limit,)).fetchall()]
+
+
+def add_candidate(url: str, title: str, text: str, source: str = "") -> int:
+    with connect(write=True) as conn:
+        cur = conn.execute(
+            "INSERT INTO candidate (url, title, text, source, status, created_at)"
+            " VALUES (?,?,?,?, 'new', ?)",
+            (url, title, text, source, datetime.now().isoformat(timespec="seconds")),
+        )
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def list_candidates(status: str | None = None, limit: int = 100) -> list[dict]:
+    sql = "SELECT * FROM candidate"
+    args: list = []
+    if status:
+        sql += " WHERE status = ?"
+        args.append(status)
+    sql += " ORDER BY id DESC LIMIT ?"
+    args.append(limit)
+    with connect() as conn:
+        return [dict(r) for r in conn.execute(sql, args).fetchall()]
+
+
+def get_candidate(cid: int) -> dict | None:
+    with connect() as conn:
+        r = conn.execute("SELECT * FROM candidate WHERE id = ?", (cid,)).fetchone()
+    return dict(r) if r else None
+
+
+def decide_candidate(cid: int, status: str, reviewer: str,
+                     note: str = "", item_id: int | None = None) -> None:
+    with connect(write=True) as conn:
+        conn.execute(
+            "UPDATE candidate SET status = ?, reviewer = ?, note = ?, item_id = ? WHERE id = ?",
+            (status, reviewer, note, item_id, cid),
+        )
+        conn.commit()
+
+
+def review_stats() -> dict:
+    with connect() as conn:
+        by_status = dict(conn.execute(
+            "SELECT status, COUNT(*) FROM kb_item GROUP BY status").fetchall())
+        cand = dict(conn.execute(
+            "SELECT status, COUNT(*) FROM candidate GROUP BY status").fetchall())
+        logs = conn.execute("SELECT COUNT(*) FROM review_log").fetchone()[0]
+    return {"by_status": by_status, "candidates": cand, "review_logs": logs}
+
+
+def claim_item(item_id: int, reviewer: str) -> tuple[bool, dict | None]:
+    """认领：锁 30 分钟。别人正在改的条目抢不到，避免两个人同时动同一条。"""
+    now = datetime.now().isoformat(timespec="seconds")
+    until = (datetime.now() + timedelta(minutes=LOCK_MINUTES)).isoformat(timespec="seconds")
+    with connect(write=True) as conn:
+        cur = conn.execute(
+            "UPDATE kb_item SET owner = ?, locked_until = ? WHERE id = ?"
+            " AND (locked_until IS NULL OR locked_until < ? OR owner = ? OR owner IS NULL)",
+            (reviewer, until, item_id, now, reviewer),
+        )
+        conn.commit()
+        ok = cur.rowcount > 0
+    return ok, get_item(item_id)
+
+
+def release_item(item_id: int, reviewer: str) -> None:
+    with connect(write=True) as conn:
+        conn.execute(
+            "UPDATE kb_item SET owner = NULL, locked_until = NULL WHERE id = ? AND owner = ?",
+            (item_id, reviewer),
+        )
+        conn.commit()
+
+
+def decide_item(item_id: int, action: str, reviewer: str, note: str = "",
+                patch: dict | None = None, version: int | None = None
+                ) -> tuple[bool, str, dict | None]:
+    """审批动作。version 对不上就拒绝，防止覆盖别人刚做的修改。"""
+    item = get_item(item_id)
+    if not item:
+        return False, "not_found", None
+    cur_ver = int(item.get("version") or 1)
+    if version is not None and int(version) != cur_ver:
+        return False, "conflict", item
+
+    fields = dict(patch or {})
+    if action == "approve":
+        fields.update(status="published", verified_at=date.today().isoformat(), reviewer=reviewer)
+    elif action == "reject":
+        fields.update(status="draft")
+    elif action == "archive":
+        fields.update(status="archived")
+    elif action == "edit":
+        pass
+    else:
+        return False, "bad_action", item
+
+    fields["version"] = cur_ver + 1
+    fields["locked_until"] = None
+    after = update_item(item_id, fields)
+    log_review(item_id, action, reviewer, note, before=item, after=after)
+    return True, "ok", after

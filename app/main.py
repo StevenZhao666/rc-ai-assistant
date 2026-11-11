@@ -15,19 +15,29 @@ from . import answer as answer_mod
 from . import config, db
 from .auth import User, get_current_user
 from .retrieve import Retriever
+from .review import router as review_router
+from .review import set_reload
 
 app = FastAPI(title="RC AI Assistant", version="0.1.0")
+app.include_router(review_router)
 
 _state: dict = {"retriever": None, "count": 0}
+
+
+def reload_kb() -> int:
+    """重建检索索引。审批通过后必须调用，否则新条目查不到。"""
+    items = db.published_items()
+    _state["retriever"] = Retriever(items)
+    _state["count"] = len(items)
+    print(f"[reload] 已加载 {len(items)} 条已发布知识")
+    return len(items)
 
 
 @app.on_event("startup")
 def _startup() -> None:
     db.init_db()
-    items = db.published_items()
-    _state["retriever"] = Retriever(items)
-    _state["count"] = len(items)
-    print(f"[startup] 已加载 {len(items)} 条已发布知识")
+    reload_kb()
+    set_reload(reload_kb)
 
 
 class AskIn(BaseModel):

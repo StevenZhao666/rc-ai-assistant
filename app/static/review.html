@@ -1,0 +1,355 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>资料审批 · 张昆仑书院</title>
+<style>
+  :root{--bg:#f6f7f9;--card:#fff;--line:#e3e6ea;--ink:#1c2126;--muted:#69727c;
+        --brand:#1f6feb;--ok:#1a7f37;--warn:#9a6700;--bad:#b42318}
+  *{box-sizing:border-box}
+  body{margin:0;font:14px/1.55 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+       background:var(--bg);color:var(--ink)}
+  header{display:flex;align-items:center;gap:16px;padding:10px 18px;background:var(--card);
+         border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0}
+  .who{display:flex;align-items:center;gap:6px;margin-left:auto;color:var(--muted);font-size:13px}
+  .who input{width:130px;padding:5px 8px;border:1px solid var(--line);border-radius:6px}
+  nav{display:flex;gap:4px;padding:10px 18px 0;background:var(--card);border-bottom:1px solid var(--line)}
+  nav button{border:1px solid transparent;border-bottom:none;background:none;padding:8px 14px;
+             border-radius:8px 8px 0 0;cursor:pointer;color:var(--muted);font-size:14px}
+  nav button.on{background:var(--bg);border-color:var(--line);color:var(--ink);font-weight:600}
+  nav .count{display:inline-block;min-width:18px;padding:0 5px;margin-left:5px;border-radius:9px;
+             background:#e8ecf1;font-size:12px;color:var(--muted)}
+  main{padding:14px 18px 40px;max-width:1400px;margin:0 auto}
+  .bar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px}
+  input[type=text],input[type=url],select,textarea{font:inherit;padding:6px 9px;border:1px solid var(--line);
+       border-radius:6px;background:#fff}
+  textarea{width:100%;resize:vertical;min-height:90px;line-height:1.6}
+  button.act{font:inherit;padding:6px 12px;border-radius:6px;border:1px solid var(--line);
+             background:#fff;cursor:pointer}
+  button.act:hover{background:#f0f3f7}
+  button.primary{background:var(--brand);border-color:var(--brand);color:#fff}
+  button.primary:hover{filter:brightness(.95)}
+  button.ok{background:var(--ok);border-color:var(--ok);color:#fff}
+  button.bad{color:var(--bad);border-color:#e8c4c0}
+  .layout{display:grid;grid-template-columns:1fr 480px;gap:14px;align-items:start}
+  @media(max-width:1100px){.layout{grid-template-columns:1fr}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:10px}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{padding:8px 10px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;font-size:12px;position:sticky;top:0;background:var(--card)}
+  tr.row{cursor:pointer}
+  tr.row:hover td{background:#f4f7fb}
+  tr.sel td{background:#eaf2fe}
+  .pill{display:inline-block;padding:1px 7px;border-radius:10px;font-size:12px;background:#eef1f5;color:var(--muted)}
+  .pill.review{background:#fff4d6;color:var(--warn)}
+  .pill.published{background:#e3f5e9;color:var(--ok)}
+  .pill.draft{background:#e8ecf1}
+  .pill.archived,.pill.expired{background:#f2e9e9;color:var(--bad)}
+  .panel{padding:14px;position:sticky;top:120px;max-height:calc(100vh - 140px);overflow:auto}
+  .panel h3{margin:0 0 10px;font-size:15px}
+  .fld{margin-bottom:10px}
+  .fld label{display:block;font-size:12px;color:var(--muted);margin-bottom:3px}
+  .fld input[type=text],.fld input[type=url],.fld select{width:100%}
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+  .hint{color:var(--muted);font-size:12px}
+  .warnbox{background:#fff8e6;border:1px solid #f0dfae;color:#6b5200;padding:6px 9px;border-radius:6px;
+           font-size:12px;margin-bottom:8px}
+  .hist{border-top:1px dashed var(--line);margin-top:12px;padding-top:8px;font-size:12px;color:var(--muted)}
+  .hist div{padding:3px 0;border-bottom:1px dotted #eee}
+  .empty{padding:26px;text-align:center;color:var(--muted)}
+  .cand{padding:10px 12px;border-bottom:1px solid var(--line);cursor:pointer}
+  .cand:hover{background:#f4f7fb}
+  .cand b{font-weight:600}
+  .cand small{color:var(--muted)}
+  .toast{position:fixed;right:18px;bottom:18px;background:#1c2126;color:#fff;padding:9px 14px;
+         border-radius:8px;font-size:13px;opacity:0;transition:.2s;pointer-events:none;max-width:420px}
+  .toast.show{opacity:1}
+  .toast.err{background:var(--bad)}
+  pre.raw{white-space:pre-wrap;background:#fbfcfd;border:1px solid var(--line);border-radius:6px;
+          padding:8px;max-height:220px;overflow:auto;font-size:12px;line-height:1.5}
+</style>
+</head>
+<body>
+<header>
+  <h1>资料审批 · 张昆仑书院</h1>
+  <div class="who">审核人 <input id="who" placeholder="学号 / 姓名"><button class="act" id="saveWho">记住</button></div>
+</header>
+
+<nav>
+  <button data-tab="queue" class="on">待审队列 <span class="count" id="cQueue">0</span></button>
+  <button data-tab="new">新资料 <span class="count" id="cCand">0</span></button>
+  <button data-tab="gaps">缺口清单</button>
+</nav>
+
+<main>
+  <!-- 待审 -->
+  <section id="tab-queue">
+    <div class="bar">
+      <select id="fStatus">
+        <option value="review">待审</option>
+        <option value="draft">草稿（被退回）</option>
+        <option value="published">已发布</option>
+        <option value="archived">已归档</option>
+        <option value="">全部</option>
+      </select>
+      <select id="fCat"><option value="">全部分类</option></select>
+      <input type="text" id="fQ" placeholder="搜问题 / 答案 / 分类" style="width:240px">
+      <button class="act" id="btnReload">刷新</button>
+      <span class="hint" id="queueHint"></span>
+    </div>
+    <div class="layout">
+      <div class="card" style="overflow:auto;max-height:calc(100vh - 220px)">
+        <table>
+          <thead><tr><th style="width:44px">#</th><th>问题</th><th style="width:110px">分类</th>
+            <th style="width:52px">时效</th><th style="width:76px">状态</th><th style="width:96px">认领</th></tr></thead>
+          <tbody id="rows"></tbody>
+        </table>
+        <div class="empty" id="queueEmpty" hidden>没有符合条件的条目</div>
+      </div>
+      <div class="card panel" id="panel"><div class="empty">点左边任意一条开始审</div></div>
+    </div>
+  </section>
+
+  <!-- 新资料 -->
+  <section id="tab-new" hidden>
+    <div class="bar">
+      <input type="url" id="scanUrl" placeholder="粘贴官网页面链接，例如 https://cklc.rc.um.edu.mo/..." style="width:520px">
+      <button class="act primary" id="btnScan">抓取正文</button>
+      <span class="hint">只取原文存成候选，不会自动生成答案</span>
+    </div>
+    <div class="layout">
+      <div class="card" style="overflow:auto;max-height:calc(100vh - 220px)">
+        <div id="candList"></div>
+      </div>
+      <div class="card panel" id="candPanel"><div class="empty">选一个候选，写成问答后提交审批</div></div>
+    </div>
+  </section>
+
+  <!-- 缺口 -->
+  <section id="tab-gaps" hidden>
+    <div class="layout">
+      <div class="card" style="overflow:auto;max-height:calc(100vh - 200px)">
+        <table>
+          <thead><tr><th>学生问了但没答上来</th><th style="width:70px">次数</th><th style="width:170px">最后出现</th></tr></thead>
+          <tbody id="gapRows"></tbody>
+        </table>
+        <div class="empty" id="gapEmpty" hidden>暂时没有缺口，说明资料够用</div>
+      </div>
+      <div class="card panel">
+        <h3>怎么用这张表</h3>
+        <p class="hint">这些是真实学生问过、系统答不上来的问题，按次数排序。拿第一条去官网找答案，找到后到「新资料」贴链接，写成问答提交审批。</p>
+        <h3 style="margin-top:14px">被点「没用」的回答</h3>
+        <div id="badList" class="hist"></div>
+      </div>
+    </div>
+  </section>
+</main>
+
+<div class="toast" id="toast"></div>
+
+<script>
+const S = { who: localStorage.getItem("rc_reviewer") || "", tab: "queue",
+            cur: null, item: null, cats: [], cand: null };
+const $ = s => document.querySelector(s);
+const esc = s => (s ?? "").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function toast(msg, err){ const t=$("#toast"); t.textContent=msg; t.className="toast show"+(err?" err":"");
+  clearTimeout(t._h); t._h=setTimeout(()=>t.className="toast", 2600); }
+
+async function api(path, opt={}){
+  const r = await fetch(path, { ...opt, headers: { "Content-Type":"application/json",
+      "X-Reviewer": S.who || "", ...(opt.headers||{}) }});
+  const j = await r.json().catch(()=>({}));
+  if(!r.ok) throw new Error(j.detail || ("HTTP "+r.status));
+  return j;
+}
+
+// ── 身份 ──
+$("#who").value = S.who;
+$("#saveWho").onclick = () => { S.who = $("#who").value.trim(); localStorage.setItem("rc_reviewer", S.who);
+  toast(S.who ? "已记住：" + S.who : "已清除"); };
+
+// ── tab ──
+document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on", x===b));
+  ["queue","new","gaps"].forEach(t => $("#tab-"+t).hidden = (t !== b.dataset.tab));
+  S.tab = b.dataset.tab;
+  if(S.tab==="queue") loadQueue(); if(S.tab==="new") loadCands(); if(S.tab==="gaps") loadGaps();
+});
+
+// ── 队列 ──
+async function loadQueue(){
+  const q = new URLSearchParams({ status:$("#fStatus").value, q:$("#fQ").value, category:$("#fCat").value });
+  const d = await api("/api/review/queue?"+q);
+  $("#cQueue").textContent = d.count;
+  $("#queueEmpty").hidden = d.count > 0;
+  $("#rows").innerHTML = d.items.map(it => `
+    <tr class="row ${S.cur===it.id?"sel":""}" data-id="${it.id}">
+      <td>${it.id}</td>
+      <td>${esc(it.question).slice(0,80)}${it.warnings?.length?' <span class="pill" title="自动检查有告警">⚠</span>':''}</td>
+      <td>${esc(it.category||"—")}</td>
+      <td>${it.ttl_type||"A"}</td>
+      <td><span class="pill ${it.status}">${statusName(it.status)}</span></td>
+      <td>${esc(it.owner||"")}</td>
+    </tr>`).join("");
+  document.querySelectorAll("#rows tr").forEach(tr => tr.onclick = () => openItem(+tr.dataset.id));
+}
+
+const statusName = s => ({review:"待审",draft:"草稿",published:"已发布",archived:"已归档",expired:"已过期"}[s]||s);
+
+async function openItem(id){
+  S.cur = id;
+  document.querySelectorAll("#rows tr").forEach(tr=>tr.classList.toggle("sel", +tr.dataset.id===id));
+  const d = await api("/api/review/item/"+id);
+  S.item = d.item; S.version = d.item.version || 1;
+  const it = d.item, w = (it.warnings||[]);
+  $("#panel").innerHTML = `
+    <h3>#${it.id} <span class="pill ${it.status}">${statusName(it.status)}</span>
+        <span class="pill">v${it.version||1}</span></h3>
+    ${it.owner?`<div class="hint">认领人：${esc(it.owner)}（30 分钟无操作自动释放）</div>`:""}
+    ${w.length?`<div class="warnbox">自动检查：${w.map(esc).join("；")}</div>`:""}
+    <div class="fld"><label>问题</label><input type="text" id="eQ" value="${esc(it.question)}"></div>
+    <div class="fld"><label>答案</label><textarea id="eA">${esc(it.answer)}</textarea></div>
+    <div class="row2">
+      <div class="fld"><label>分类</label><input type="text" id="eCat" value="${esc(it.category||"")}"></div>
+      <div class="fld"><label>时效</label><select id="eTtl">
+        ${["A","B","C"].map(t=>`<option ${it.ttl_type===t?"selected":""} value="${t}">${t} · ${{A:"稳定",B:"年度",C:"实时"}[t]}</option>`).join("")}
+      </select></div>
+    </div>
+    <div class="fld"><label>来源说明</label><input type="text" id="eSrc" value="${esc(it.source||"")}"></div>
+    <div class="fld"><label>来源链接</label><input type="url" id="eUrl" value="${esc(it.source_url||"")}"></div>
+    <div class="row2">
+      <div class="fld"><label>核实日期</label><input type="text" id="eVer" value="${esc(it.verified_at||"")}" placeholder="2026-11-11"></div>
+      <div class="fld"><label>有效期至（可空）</label><input type="text" id="eUntil" value="${esc(it.valid_until||"")}"></div>
+    </div>
+    <div class="fld"><label>审批备注（退回时必填）</label><input type="text" id="eNote" placeholder="例如：数字与官网不一致"></div>
+    <div class="bar" style="margin:4px 0 0">
+      <button class="act primary" id="bSave">保存修改</button>
+      <button class="act ok" id="bOk">通过并发布</button>
+      <button class="act bad" id="bRej">退回</button>
+      <button class="act" id="bArc">归档</button>
+      ${it.owner?`<button class="act" id="bRel">释放</button>`:`<button class="act" id="bClaim">认领</button>`}
+    </div>
+    <div class="hist"><b>操作记录</b>
+      ${d.history.length? d.history.map(h=>`<div>${esc(h.ts)} · ${esc(h.reviewer||"—")} · ${actName(h.action)}${h.note?" · "+esc(h.note):""}</div>`).join("") : "<div>还没有人审过</div>"}
+    </div>`;
+  const patch = () => ({ question:$("#eQ").value, answer:$("#eA").value, category:$("#eCat").value,
+      ttl_type:$("#eTtl").value, source:$("#eSrc").value, source_url:$("#eUrl").value,
+      verified_at:$("#eVer").value, valid_until:$("#eUntil").value });
+  const decide = async (action, extra={}) => {
+    try{
+      await api(`/api/review/item/${it.id}/decide`, { method:"POST", body: JSON.stringify({
+        action, note: $("#eNote").value, patch: action==="edit"||action==="approve"?patch():{}, version:S.version, ...extra })});
+      toast(action==="approve"?"已发布，检索已刷新":action==="reject"?"已退回":"已保存");
+      loadQueue(); openItem(it.id);
+    }catch(e){ toast(e.message, true); }
+  };
+  $("#bSave").onclick = () => decide("edit");
+  $("#bOk").onclick   = () => decide("approve");
+  $("#bRej").onclick  = () => { if(!$("#eNote").value.trim()) return toast("退回要写理由", true); decide("reject"); };
+  $("#bArc").onclick  = () => decide("archive");
+  if($("#bClaim")) $("#bClaim").onclick = async () => {
+    try{ await api(`/api/review/item/${it.id}/claim`, {method:"POST"}); toast("已认领"); openItem(it.id); }
+    catch(e){ toast(e.message, true); } };
+  if($("#bRel")) $("#bRel").onclick = async () => {
+    await api(`/api/review/item/${it.id}/release`, {method:"POST"}); toast("已释放"); openItem(it.id); };
+}
+
+const actName = a => ({approve:"通过",reject:"退回",edit:"修改",archive:"归档",create:"新建"}[a]||a);
+
+$("#btnReload").onclick = loadQueue;
+$("#fStatus").onchange = loadQueue; $("#fCat").onchange = loadQueue;
+$("#fQ").oninput = (()=>{let h;return()=>{clearTimeout(h);h=setTimeout(loadQueue,300);}})();
+
+async function loadCats(){
+  const d = await api("/api/review/categories");
+  S.cats = d.categories;
+  $("#fCat").innerHTML = `<option value="">全部分类</option>` +
+    d.categories.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}（${c.n}）</option>`).join("");
+}
+
+// ── 新资料 ──
+async function loadCands(){
+  const d = await api("/api/review/candidates?status=new");
+  $("#cCand").textContent = d.items.length;
+  $("#candList").innerHTML = d.items.length ? d.items.map(c=>`
+    <div class="cand" data-id="${c.id}">
+      <b>${esc(c.title||c.url)}</b><br>
+      <small>${esc(c.url)} · ${(c.text||"").length} 字 · ${esc(c.created_at||"")}</small>
+    </div>`).join("") : `<div class="empty">还没有候选，贴个链接抓一页试试</div>`;
+  document.querySelectorAll(".cand").forEach(el => el.onclick = () => openCand(+el.dataset.id));
+}
+
+$("#btnScan").onclick = async () => {
+  const url = $("#scanUrl").value.trim();
+  if(!url) return toast("先贴链接", true);
+  $("#btnScan").disabled = true; $("#btnScan").textContent = "抓取中…";
+  try{
+    const d = await api("/api/review/scan", {method:"POST", body: JSON.stringify({url})});
+    toast(`已抓取 ${d.chars} 字：${d.title||url}`);
+    $("#scanUrl").value = ""; await loadCands(); openCand(d.candidate_id);
+  }catch(e){ toast(e.message, true); }
+  finally{ $("#btnScan").disabled = false; $("#btnScan").textContent = "抓取正文"; }
+};
+
+function openCand(id){
+  const c = (window._cands||[]).find(x=>x.id===id);
+  api("/api/review/candidates?status=new").then(d=>{
+    const cc = d.items.find(x=>x.id===id); if(!cc) return;
+    S.cand = cc;
+    $("#candPanel").innerHTML = `
+      <h3>${esc(cc.title||"候选")}</h3>
+      <div class="hint" style="margin-bottom:8px"><a href="${esc(cc.url)}" target="_blank" rel="noreferrer">${esc(cc.url)}</a></div>
+      <pre class="raw">${esc((cc.text||"").slice(0,1500))}…</pre>
+      <div class="fld" style="margin-top:10px"><label>问题（学生怎么问）</label><input type="text" id="dQ" placeholder="例如：书院健身房的开放时间是？"></div>
+      <div class="fld"><label>答案（按原文写，不要推测）</label><textarea id="dA"></textarea></div>
+      <div class="row2">
+        <div class="fld"><label>分类</label><input type="text" id="dCat" value="设施"></div>
+        <div class="fld"><label>时效</label><select id="dTtl"><option value="A">A 稳定</option><option value="B">B 年度</option><option value="C">C 实时</option></select></div>
+      </div>
+      <div class="fld"><label>来源说明</label><input type="text" id="dSrc" value="${esc(cc.title||"")}"></div>
+      <div class="bar">
+        <button class="act primary" id="dSubmit">提交审批</button>
+        <button class="act bad" id="dReject">不要这条</button>
+      </div>
+      <div class="hint" style="margin-top:8px">提交后进「待审队列」，状态是 review；只有通过才会被学生搜到。</div>`;
+    $("#dSubmit").onclick = async () => {
+      try{
+        const d2 = await api(`/api/review/candidates/${cc.id}/draft`, {method:"POST", body: JSON.stringify({
+          question:$("#dQ").value, answer:$("#dA").value, category:$("#dCat").value,
+          ttl_type:$("#dTtl").value, source:$("#dSrc").value, source_url:cc.url })});
+        toast(`已生成 #${d2.item_id}，去待审队列审它`);
+        loadCands(); $("#candPanel").innerHTML = `<div class="empty">已提交，去「待审队列」处理</div>`;
+      }catch(e){ toast(e.message, true); }
+    };
+    $("#dReject").onclick = async () => {
+      try{ await api(`/api/review/candidates/${cc.id}/reject`, {method:"POST"});
+        toast("已丢弃"); loadCands(); $("#candPanel").innerHTML = `<div class="empty">已丢弃</div>`; }
+      catch(e){ toast(e.message, true); }
+    };
+  });
+}
+
+// ── 缺口 ──
+async function loadGaps(){
+  const d = await api("/api/review/gaps");
+  $("#gapEmpty").hidden = d.unanswered.length > 0;
+  $("#gapRows").innerHTML = d.unanswered.map(g=>`
+    <tr><td>${esc(g.question)}</td><td>${g.times}</td><td class="hint">${esc(g.last_seen||"")}</td></tr>`).join("");
+  $("#badList").innerHTML = d.bad.length
+    ? d.bad.map(b=>`<div>${esc(b.question)}${b.note?"<br><span class='hint'>"+esc(b.note)+"</span>":""}</div>`).join("")
+    : "<div>还没有差评</div>";
+}
+
+// ── 启动 ──
+(async () => {
+  await loadCats().catch(()=>{});
+  await loadQueue().catch(e=>{ $("#panel").innerHTML = `<div class="empty">${esc(e.message)}<br>先在右上角填审核人</div>`; });
+  const st = await api("/api/review/stats").catch(()=>null);
+  if(st) $("#cQueue").textContent = (st.by_status.review||0);
+})();
+</script>
+</body>
+</html>

@@ -41,3 +41,6 @@ MIN_SCORE = float(os.environ.get("MIN_SCORE", "2.5"))
 
 # 当前学年：B 类（年度型）答案会带上这个前缀
 ACADEMIC_YEAR = os.environ.get("ACADEMIC_YEAR", "2026/27")
+
+# 审批人名单（学号或姓名，逗号分隔）。留空 = 不限制（本地开发用）
+REVIEWERS = {x.strip() for x in os.environ.get("REVIEWERS", "").split(",") if x.strip()}
