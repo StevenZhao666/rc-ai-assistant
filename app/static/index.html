@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CKLC 书院 AI 助手</title>
+<style>
+  :root{
+    --bg:#0f1115; --panel:#161a21; --line:#252b36; --fg:#e8eaed; --dim:#9aa3b2;
+    --accent:#4b8dfd; --warn:#f0b429; --ok:#38b48b;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;}
+  header{position:sticky;top:0;z-index:5;background:rgba(15,17,21,.92);
+         backdrop-filter:blur(8px);border-bottom:1px solid var(--line);
+         padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
+  header h1{font-size:16px;margin:0;font-weight:600}
+  .pill{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
+  .pill.ok{color:var(--ok);border-color:rgba(56,180,139,.4)}
+  main{max-width:840px;margin:0 auto;padding:24px 20px 140px}
+  .msg{margin:18px 0;display:flex;gap:10px}
+  .msg .who{flex:0 0 34px;height:34px;border-radius:10px;display:grid;place-items:center;
+            font-size:12px;font-weight:600;background:var(--panel);border:1px solid var(--line)}
+  .bubble{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+          padding:12px 16px;white-space:pre-wrap;word-break:break-word}
+  .msg.user .bubble{background:#1b2536;border-color:#26364f}
+  .cite{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px;font-size:13px;color:var(--dim)}
+  .cite b{color:var(--fg);font-weight:600}
+  .tag{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:6px;margin:4px 6px 0 0;
+       background:rgba(240,180,41,.12);color:var(--warn);border:1px solid rgba(240,180,41,.35)}
+  .fail{border-color:rgba(240,180,41,.45)}
+  footer{position:fixed;bottom:0;left:0;right:0;background:rgba(15,17,21,.96);
+         border-top:1px solid var(--line);padding:14px 20px}
+  .box{max-width:840px;margin:0 auto;display:flex;gap:10px}
+  input[type=text]{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--fg);
+                   border-radius:10px;padding:11px 14px;font:inherit;outline:none}
+  input[type=text]:focus{border-color:var(--accent)}
+  button{background:var(--accent);color:#fff;border:0;border-radius:10px;padding:0 20px;
+         font:inherit;font-weight:600;cursor:pointer}
+  button:disabled{opacity:.5;cursor:default}
+  .quick{max-width:840px;margin:0 auto 10px;display:flex;gap:8px;flex-wrap:wrap}
+  .quick span{font-size:12.5px;padding:4px 10px;border:1px solid var(--line);border-radius:999px;
+              color:var(--dim);cursor:pointer}
+  .quick span:hover{border-color:var(--accent);color:var(--fg)}
+</style>
+</head>
+<body>
+<header>
+  <h1>张昆仑书院 · AI 助手</h1>
+  <span class="pill" id="who">读取身份中…</span>
+  <span class="pill" id="mode">模式…</span>
+  <span class="pill">本地演示版 · 数据未审核</span>
+</header>
+
+<main id="log">
+  <div class="msg"><div class="who">AI</div><div class="bubble">
+你好，我是书院问答助手（本地演示版）。我只根据书院资料回答，答完会告诉你依据哪一条。
+资料里没有的，我会直说没有，并给你办公室联系方式。
+  </div></div>
+</main>
+
+<footer>
+  <div class="quick">
+    <span data-q="書院辦公室在哪裡？">办公室在哪</span>
+    <span data-q="房間更換怎麼申請？">怎么换房间</span>
+    <span data-q="健身房開放時間">健身房时间</span>
+    <span data-q="可以养宠物吗">能养宠物吗</span>
+    <span data-q="今天晚饭吃什么">问一个资料里没有的</span>
+  </div>
+  <div class="box">
+    <input id="q" type="text" placeholder="问点什么… 例如：退宿要提前多久预约？" autocomplete="off">
+    <button id="send">发送</button>
+  </div>
+</footer>
+
+<script>
+const log = document.getElementById('log');
+const qEl = document.getElementById('q');
+const sendBtn = document.getElementById('send');
+
+(async () => {
+  try {
+    const me = await (await fetch('/api/me')).json();
+    document.getElementById('who').textContent = '已登录：' + me.student_id;
+    const h = await (await fetch('/health')).json();
+    document.getElementById('mode').textContent = h.model === 'llm' ? '模型模式' : '抽取式（未接模型）';
+  } catch (e) { document.getElementById('who').textContent = '身份接口异常'; }
+})();
+
+function addMsg(role, text) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + role;
+  el.innerHTML = `<div class="who">${role === 'user' ? '我' : 'AI'}</div><div class="bubble"></div>`;
+  el.querySelector('.bubble').textContent = text;
+  log.appendChild(el);
+  window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+  return el.querySelector('.bubble');
+}
+
+function renderCitations(bubble, cites) {
+  if (!cites || !cites.length) return;
+  const box = document.createElement('div');
+  box.className = 'cite';
+  cites.forEach((c, i) => {
+    const d = document.createElement('div');
+    d.style.marginTop = i ? '8px' : '0';
+    d.innerHTML = `<b>依据 ${i+1}：</b>${c.source}`
+      + (c.verified_at ? `（核实于 ${c.verified_at}）` : '（未核实）')
+      + `<div style="margin-top:2px">匹配条目：${c.question}</div>`;
+    (c.warnings || []).forEach(w => {
+      const t = document.createElement('span');
+      t.className = 'tag'; t.textContent = '⚠ ' + w;
+      d.appendChild(t);
+    });
+    box.appendChild(d);
+  });
+  bubble.appendChild(box);
+}
+
+async function ask(text) {
+  if (!text.trim()) return;
+  addMsg('user', text);
+  qEl.value = '';
+  sendBtn.disabled = true;
+  const b = addMsg('ai', '检索中…');
+  try {
+    const r = await fetch('/api/ask', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({question: text})
+    });
+    const data = await r.json();
+    b.textContent = data.answer || JSON.stringify(data);
+    if (data.mode === 'fallback') b.classList.add('fail');
+    renderCitations(b, data.citations);
+  } catch (e) {
+    b.textContent = '请求失败：' + e;
+  } finally {
+    sendBtn.disabled = false;
+    qEl.focus();
+  }
+}
+
+sendBtn.onclick = () => ask(qEl.value);
+qEl.addEventListener('keydown', e => { if (e.key === 'Enter') ask(qEl.value); });
+document.querySelectorAll('.quick span').forEach(s => s.onclick = () => ask(s.dataset.q));
+qEl.focus();
+</script>
+</body>
+</html>

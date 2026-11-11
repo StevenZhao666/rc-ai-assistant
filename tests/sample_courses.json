@@ -1,0 +1,5 @@
+[
+  {"courseCode": "CISC1001", "title": "Programming Fundamentals", "credits": 3, "department": "FST"},
+  {"courseCode": "MATH2005", "title": "Probability and Statistics", "credits": 3, "department": "FST"},
+  {"courseCode": "GEST1009", "title": "General Education", "credits": 2, "department": "GE"}
+]
