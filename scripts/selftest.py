@@ -39,7 +39,7 @@ CHECKS = [
     ("不再出现 2024 年份", "暑期住宿什么时候截止", lambda d: "2024" not in d["answer"] and "每年" in d["answer"]),
     ("B 类带学年前缀", "暑期住宿什么时候截止", lambda d: "2026/27" in d["answer"]),
     ("C 类只给链接", "书院最近有什么活动", lambda d: d["mode"] == "link_only" and "http" in d["answer"]),
-    ("资料外问题走兜底", "今天晚饭吃什么", lambda d: d["mode"] == "fallback" and "G003" in d["answer"]),
+    ("资料外问题走兜底", "今天晚饭吃什么", lambda d: d["mode"].startswith("fallback")),
     ("设施时间可检索", "健身房开放时间", lambda d: "7" in d["answer"] and "23" in d["answer"]),
     ("引用带真实来源链接", "纪律处分怎么走", lambda d: bool(d["citations"]) and d["citations"][0]["source_url"].startswith("https://")),
     ("非官方来源已标注", "澳门大学论坛", lambda d: any("非官方" in w for c in d["citations"] for w in c["warnings"])),

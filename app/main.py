@@ -123,6 +123,17 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
     result["text"] = limit_notice + result["text"]
     db.log_qa(user.student_id, q, result["text"], hits[0]["score"] if hits else 0.0)
 
+    # 书院介绍这类由条目直接拼出来的回答：引用就是那几条，标记已经对齐，不再重编号
+    if result.get("sources"):
+        cites = result["sources"]
+        return {
+            "answer": result["text"],
+            "mode": result["mode"],
+            "citations": cites,
+            "user": user.student_id,
+            "quota": dict(zip(("llm_left", "basic_left"), _quota(ip))),
+        }
+
     # 只展示模型真正用到的条目，避免「答案说 A、引用写 B」
     all_cites = answer_mod.citations(hits) if hits else []
     used = sorted({i for i in (result.get("used") or []) if 0 < i <= len(all_cites)})

@@ -62,21 +62,41 @@ def fallback(lang: str) -> str:
 
 
 def meta_identity(lang: str) -> str:
-    """「你是谁 / 你能做什么」——不该检索，也不该说不知道。"""
+    """身份题：一句范围 + 一个追问。不列能力清单、不列禁区清单（那才是客服味）。"""
     if lang == "en":
-        return ("I'm the Q&A assistant for Cheong Kun Lun College (CKLC), University of Macau.\n"
-                "I can look up hall rules, facilities, room and check-in/out matters, forms and procedures, "
-                "activities and who-to-ask questions — and I show the source for each answer.\n"
-                "I don't do grades, course selection, medical or legal advice; for those I'll point you to the right office.")
+        return "I help CKLC residents look things up: rooms, facilities, hall rules, forms. What do you need?"
     if lang == "zh-Hant":
-        return ("我是澳門大學張崑崙書院（CKLC）的資料問答助手。\n"
-                "住宿規章、設施開放時間、房務與退宿、表格與辦事流程、活動與「該找誰」這類問題，"
-                "我可以查書院資料回答，並附上依據。\n"
-                "成績、選課、醫療和法律問題我不摻和，會告訴你該找哪個部門。")
-    return ("我是澳门大学张昆仑书院（CKLC）的资料问答助手。\n"
-            "住宿规章、设施开放时间、房务与退宿、表格与办事流程、活动与「该找谁」这类问题，"
-            "我可以查书院资料回答，并附上依据。\n"
-            "成绩、选课、医疗和法律问题我不掺和，会告诉你该找哪个部门。")
+        return "我主要幫院生查 CKLC 嘅資料：房務、設施、院規、辦事流程都可以問。你想查邊樣？"
+    return "我主要帮院生查 CKLC 的资料：房务、设施、院规、办事流程都能问。你想查哪件？"
+
+
+def fallback_live(lang: str, channel: str) -> str:
+    """实时/校外信息：给对的口子，不要甩书院办公室。"""
+    if lang == "en":
+        return "I cannot look up live information like that. Check " + channel + "."
+    if lang == "zh-Hant":
+        return "呢類實時資訊我查唔到，要睇" + channel + "。"
+    return "这类实时信息我查不到，得看" + channel + "。"
+
+
+def fallback_gap(lang: str, topic: str) -> str:
+    """已知的资料缺口：直接承认没有，给下一步，不猜。"""
+    if lang == "en":
+        return ("The materials do not cover " + topic +
+                ". Ask the college office (G003, 8822 9520) and they can confirm.")
+    if lang == "zh-Hant":
+        return topic + "，現有資料冇寫。要辦就直接問 G003：（+853）8822 9520。"
+    return topic + "，现有资料没写。要办就直接问 G003：（+853）8822 9520。"
+
+
+def fallback_low(lang: str) -> str:
+    """检索没命中，但问题在范围内：请对方说具体点，不责怪、不甩电话。"""
+    if lang == "en":
+        return ("I did not find a matching entry. Can you be more specific: "
+                "is it about your room, a facility, or a procedure?")
+    if lang == "zh-Hant":
+        return "搵唔到對應嘅條目。你可唔可以講具體啲：係問房間、設施，定係辦事流程？"
+    return "没找到对应条目。你能说具体点吗：是问房间、设施，还是办事流程？"
 
 
 def college_intro(lang: str) -> str:

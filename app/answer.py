@@ -79,12 +79,56 @@ INTRO_HINTS = ("书院介绍", "書院介紹", "介绍一下书院", "介紹一�
                "introduce the college", "about the college", "college introduction")
 
 
-def _fallback(lang: str) -> dict:
-    return {
-        "mode": "fallback",
-        "used": [],
-        "text": i18n.fallback(lang),
-    }
+LIVE_MAP = {
+    "天气": "澳门气象局（smg.gov.mo）或手机天气",
+    "下雨": "澳门气象局（smg.gov.mo）或手机天气",
+    "落雨": "澳门气象局（smg.gov.mo）或手机天气",
+    "台风": "澳门气象局（smg.gov.mo）的台风消息",
+    "颱風": "澳门气象局（smg.gov.mo）的台风消息",
+    "几度": "手机天气或 smg.gov.mo",
+    "氣溫": "澳门气象局（smg.gov.mo）",
+    "汇率": "银行官网或手机银行",
+    "匯率": "银行官网或手机银行",
+    "股价": "行情软件",
+    "股票": "行情软件",
+    "新闻": "书院公告页 cklc.rc.um.edu.mo/news-announcements/",
+    "weather": "the Macao Meteorological Bureau (smg.gov.mo)",
+    "exchange rate": "your bank app",
+}
+
+# 已知缺口：知识库里确实没有的事实。承认没有，给下一步，不编、不甩一长串联系方式。
+GAP_MAP = {
+    "押金": "押金金额和退还时间",
+    "赔偿": "损坏赔偿标准",
+    "赔钱": "损坏赔偿标准",
+    "门禁": "门禁与晚归规定",
+    "晚归": "晚归处理方式",
+    "宵禁": "门禁时间",
+    "饭堂": "饭堂与膳食安排",
+    "膳食": "饭堂与膳食安排",
+    "食堂": "饭堂与膳食安排",
+    "快递": "快递代收点",
+    "包裹": "快递代收点",
+    "打印": "打印服务",
+    "wifi": "WiFi 连接方式",
+    "wi-fi": "WiFi 连接方式",
+    "洗衣机收費": "洗衣收费",
+    "安静": "安静时段",
+    "携带": "入住携带物品清单",
+    "续住": "续住申请流程",
+    "截止日期": "毕业退宿截止日期",
+}
+
+
+def _fallback(question: str, lang: str) -> dict:
+    q = question.lower()
+    for k, channel in LIVE_MAP.items():
+        if k in q:
+            return {"mode": "fallback_live", "used": [], "text": i18n.fallback_live(lang, channel)}
+    for k, topic in GAP_MAP.items():
+        if k in q:
+            return {"mode": "fallback_gap", "used": [], "text": i18n.fallback_gap(lang, topic)}
+    return {"mode": "fallback", "used": [], "text": i18n.fallback_low(lang)}
 
 
 def _extractive(question: str, hits: list[dict]) -> dict:
@@ -116,8 +160,8 @@ def _llm(question: str, hits: list[dict]) -> dict | None:
         "1. 第一句直接给答案，不用「您好」「根据资料」开场，也不复述页面已有的免责声明。\n"
         "2. 有步骤、条件、多个地点就分点，一点一句。\n"
         "3. 用到检索资料就在句末标 [编号]，没用到不标，也不要编编号。\n"
-        "4. 问「你是谁」「你能做什么」或闲聊：一句话说清你是书院资料助手，能查规章、设施、房务、办事流程，"
-        "再反问一句要查什么；不要答「资料里没有」。\n"
+        "4. 问「你是谁」「你能做什么」或闲聊：不自称「资料问答助手」，不列能力清单、不列禁区清单；"
+        "一句说明帮院生查哪类书院资料，再问「你想查哪件？」。\n"
         "5. 问得宽泛（如「书院介绍」）：先用资料给三五句概括，再问想深入哪方面。\n"
         "6. 资料只够答一部分：先答有的，再说缺哪部分、该问谁或看哪页。\n"
         "7. 资料完全没有：第一句说「这条资料里没有」，给一个具体的下一步；"
@@ -183,6 +227,46 @@ def _log_usage(model: str, usage: dict) -> None:
         pass
 
 
+def _intro_from_kb(lang: str) -> dict | None:
+    """书院介绍：从已发布的「书院基础档案」条目拼，带真实引用，不另写一套事实。"""
+    from . import db
+    items = [i for i in db.list_items("published")
+             if (i.get("category") or "") == "书院基础档案"]
+    if len(items) < 2:
+        return None
+    order = ("在哪棟樓", "什麼時候成立", "多少房間", "精神")
+    picked = []
+    for kw in order:
+        for it in items:
+            if kw in (it.get("question") or "") and it not in picked:
+                picked.append(it)
+                break
+    if len(picked) < 2:
+        picked = items[:3]
+
+    def _clean(x: str) -> str:
+        x = x.replace("在横琴校区澳门大学横琴校区", "在横琴校区")
+        x = x.replace("澳门大学横琴校区", "横琴校区")
+        if lang == "zh-Hans":
+            try:
+                from opencc import OpenCC
+                x = OpenCC("t2s").convert(x)
+            except Exception:
+                pass
+        return x.strip().rstrip("。")
+
+    parts = []
+    for i, it in enumerate(picked, start=1):
+        parts.append(_clean(it.get("answer") or "") + "。 [" + str(i) + "]")
+    tail = {"en": " Want more on any part?",
+            "zh-Hant": " 想細問邊部分？",
+            "zh-Hans": " 想细问哪部分？"}[lang]
+    text = "\n".join(parts) + tail
+    cites = [{"id": it["id"], "question": it["question"], "source": it.get("source"),
+              "source_url": it.get("source_url"), "warnings": []} for it in picked]
+    return {"mode": "intro", "text": text, "used": [], "sources": cites}
+
+
 def answer(question: str, hits: list[dict], allow_llm: bool = True) -> dict:
     lang = i18n.detect_lang(question)
 
@@ -190,7 +274,7 @@ def answer(question: str, hits: list[dict], allow_llm: bool = True) -> dict:
     if any(h in question.lower() for h in META_HINTS):
         return {"mode": "meta", "text": i18n.meta_identity(lang), "used": []}
     if any(h in question.lower() for h in INTRO_HINTS):
-        return {"mode": "intro", "text": i18n.college_intro(lang), "used": []}
+        return _intro_from_kb(lang) or {"mode": "intro", "text": i18n.college_intro(lang), "used": []}
 
     # 一、越界问题（急救、医疗、代写、情绪、人身安全）：不检索，直接给专用话术
     for triggers, kind in SAFETY_RULES:
@@ -211,7 +295,7 @@ def answer(question: str, hits: list[dict], allow_llm: bool = True) -> dict:
         }
 
     if not hits or hits[0]["score"] < config.MIN_SCORE:
-        return _fallback(lang)
+        return _fallback(question, lang)
 
     top = hits[0]
 
