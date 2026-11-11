@@ -4,3 +4,6 @@ data/auth/
 __pycache__/
 .venv/
 ref/
+data/*.jsonl
+data/*.log
+data/simtest_results.json
