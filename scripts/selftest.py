@@ -35,7 +35,7 @@ def ask(q: str) -> dict:
 
 CHECKS = [
     ("简体问繁体资料", "宿舍可以养宠物吗",
-     lambda d: any(k in d["_norm"] for k in ("不允许", "不可以", "不得带宠物"))),
+     lambda d: any(k in d["_norm"] for k in ("不允许", "不可以", "不能养", "不能带", "不得带宠物", "不行"))),
     ("不再出现 2024 年份", "暑期住宿什么时候截止", lambda d: "2024" not in d["answer"] and "每年" in d["answer"]),
     ("B 类带学年前缀", "暑期住宿什么时候截止", lambda d: "2026/27" in d["answer"]),
     ("C 类只给链接", "书院最近有什么活动", lambda d: d["mode"] == "link_only" and "http" in d["answer"]),

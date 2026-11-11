@@ -68,6 +68,16 @@ SAFETY_RULES = [
 ACTIVITY_HINTS = ("活動", "活动", "通知", "最近", "近期", "最新", "有咩",
                   "event", "events", "news", "calendar")
 
+# 「你是谁 / 你能做什么」——不该检索，也不该说不知道
+META_HINTS = ("你是谁", "你是誰", "你是什么", "你是什麼", "你能做什么", "你能做什麼",
+              "你可以做什么", "你可以做什麼", "你会什么", "你會什麼", "怎么用你", "怎麼用你",
+              "who are you", "what can you do")
+
+# 「书院介绍」这类泛问题——直接用基础档案讲
+INTRO_HINTS = ("书院介绍", "書院介紹", "介绍一下书院", "介紹一下書院", "书院简介", "書院簡介",
+               "书院是什么", "書院是什麼", "关于书院", "關於書院", "书院的历史",
+               "introduce the college", "about the college", "college introduction")
+
 
 def _fallback(lang: str) -> dict:
     return {
@@ -101,15 +111,25 @@ def _llm(question: str, hits: list[dict]) -> dict | None:
     )
     system = (
         context_block()
-        + f"\n你是{config.COLLEGE_NAME}的问答助手。只根据下面的资料回答，"
-        "资料里没有的就说不知道，并给出办公室联系方式。"
-        "不要编造，不要补充资料以外的内容。"
-        "回答语言必须与提问一致：简体提问用简体回答，繁体提问用繁体，英文提问用英文；"
-        "用粤语口语提问（唔、嘅、喺、咗、邊度）时，用繁体中文回答，不要转成简体；"
-        "不要把资料里的繁体原文整段照抄进简体回答。"
-        "凡是用到某条资料，必须在对应句子末尾标注编号，例如 [1] 或 [2]；"
-        "没用到就不要标，也不许标资料里不存在的编号。"
-        f"\n\n资料：\n{ctx}"
+        + f"\n\n你是{config.COLLEGE_NAME}的院生助手，语气像住了一年的学长：先结论后细节，短句，不客套，不自称「AI」。\n"
+        "怎么答：\n"
+        "1. 第一句直接给答案，不用「您好」「根据资料」开场，也不复述页面已有的免责声明。\n"
+        "2. 有步骤、条件、多个地点就分点，一点一句。\n"
+        "3. 用到检索资料就在句末标 [编号]，没用到不标，也不要编编号。\n"
+        "4. 问「你是谁」「你能做什么」或闲聊：一句话说清你是书院资料助手，能查规章、设施、房务、办事流程，"
+        "再反问一句要查什么；不要答「资料里没有」。\n"
+        "5. 问得宽泛（如「书院介绍」）：先用资料给三五句概括，再问想深入哪方面。\n"
+        "6. 资料只够答一部分：先答有的，再说缺哪部分、该问谁或看哪页。\n"
+        "7. 资料完全没有：第一句说「这条资料里没有」，给一个具体的下一步；"
+        "只有个案、需要审批、或确实答不了时才附办公室电话。\n"
+        "8. 边界：不代写作业、不预测成绩、不评价老师、不给医疗/法律/心理诊断建议、不把本院规定套到别的书院。\n"
+        "9. 语言跟提问走：简体→简体，繁体→繁体，粤语→繁体口语，英文→英文；不要把繁体原文整段照抄进简体回答。\n"
+        "写法（照这个感觉，不要写成公文）：\n"
+        "· 用「你+动词」，不用敬语和被动句：写「你要用会议室，提前三天约」，不写「如需使用会议室，须提前三日提出申请」。\n"
+        "· 时间、地点、数字塞进主句，不要踢皮球：写「7:00-23:00，在 G024/G026/G027」，不写「详情请参阅相关公告」。\n"
+        "· 例子——问「健身房几点开」答「7:00-23:00，G024/G026/G027 三间都能用 [1]。」；"
+        "问「房卡丢了怎么办」答「先去 G003 办公室补办，带学生证；当时进不了门就找楼下保安开 [1]。」\n"
+        f"\n资料：\n{ctx}"
     )
     payload = {
         "model": config.LLM_MODEL,
@@ -117,8 +137,8 @@ def _llm(question: str, hits: list[dict]) -> dict | None:
             {"role": "system", "content": system},
             {"role": "user", "content": question},
         ],
-        "temperature": 0.2,
-        "max_tokens": 600,
+        "temperature": 0.3,
+        "max_tokens": 500,
     }
     req = urllib.request.Request(
         config.LLM_BASE + "/chat/completions",
@@ -165,6 +185,12 @@ def _log_usage(model: str, usage: dict) -> None:
 
 def answer(question: str, hits: list[dict], allow_llm: bool = True) -> dict:
     lang = i18n.detect_lang(question)
+
+    # 零、问「你是谁」和「书院介绍」：不该检索，也不该说不知道
+    if any(h in question.lower() for h in META_HINTS):
+        return {"mode": "meta", "text": i18n.meta_identity(lang), "used": []}
+    if any(h in question.lower() for h in INTRO_HINTS):
+        return {"mode": "intro", "text": i18n.college_intro(lang), "used": []}
 
     # 一、越界问题（急救、医疗、代写、情绪、人身安全）：不检索，直接给专用话术
     for triggers, kind in SAFETY_RULES:

@@ -41,13 +41,65 @@ def office_line(lang: str) -> str:
             f"办公时间：{config.OFFICE_HOURS}")
 
 
+def office_brief(lang: str) -> str:
+    from . import config
+    if lang == "en":
+        return f"College Office G003 · {config.OFFICE_PHONE} · {config.OFFICE_EMAIL}"
+    if lang == "zh-Hant":
+        return f"書院辦公室 G003 · {config.OFFICE_PHONE} · {config.OFFICE_EMAIL}"
+    return f"书院办公室 G003 · {config.OFFICE_PHONE} · {config.OFFICE_EMAIL}"
+
+
 def fallback(lang: str) -> str:
     if lang == "en":
-        return ("I couldn't find this in the college materials, so I won't guess.\n\n"
-                + office_line(lang))
+        return ("I don't have this one in the college materials, and I'd rather not guess.\n"
+                "Try rephrasing, or ask the office: " + office_brief(lang))
     if lang == "zh-Hant":
-        return ("這個問題我在書院資料裡沒有找到確切答案，不敢亂答。\n\n" + office_line(lang))
-    return "这个问题我在书院资料里没有找到确切答案，不敢乱答。\n\n" + office_line(lang)
+        return ("這條書院資料裡沒有，我不敢亂講。\n"
+                "換個說法再問我一次，或者直接問辦公室：" + office_brief(lang))
+    return ("这条书院资料里没有，我不敢乱讲。\n"
+            "换个说法再问，或者直接问办公室：" + office_brief(lang))
+
+
+def meta_identity(lang: str) -> str:
+    """「你是谁 / 你能做什么」——不该检索，也不该说不知道。"""
+    if lang == "en":
+        return ("I'm the Q&A assistant for Cheong Kun Lun College (CKLC), University of Macau.\n"
+                "I can look up hall rules, facilities, room and check-in/out matters, forms and procedures, "
+                "activities and who-to-ask questions — and I show the source for each answer.\n"
+                "I don't do grades, course selection, medical or legal advice; for those I'll point you to the right office.")
+    if lang == "zh-Hant":
+        return ("我是澳門大學張崑崙書院（CKLC）的資料問答助手。\n"
+                "住宿規章、設施開放時間、房務與退宿、表格與辦事流程、活動與「該找誰」這類問題，"
+                "我可以查書院資料回答，並附上依據。\n"
+                "成績、選課、醫療和法律問題我不摻和，會告訴你該找哪個部門。")
+    return ("我是澳门大学张昆仑书院（CKLC）的资料问答助手。\n"
+            "住宿规章、设施开放时间、房务与退宿、表格与办事流程、活动与「该找谁」这类问题，"
+            "我可以查书院资料回答，并附上依据。\n"
+            "成绩、选课、医疗和法律问题我不掺和，会告诉你该找哪个部门。")
+
+
+def college_intro(lang: str) -> str:
+    """「书院介绍」这类泛问题：直接用基础档案讲，不要检索。"""
+    from .profile import PROFILE
+    b = PROFILE["building"]
+    room = PROFILE["office"].replace("G 层 ", "")
+    if lang == "en":
+        return (f"{PROFILE['name_en']} is one of the ten residential colleges at the University of Macau. "
+                f"It was founded in 2016 on the Hengqin campus, sits in Building {b}, "
+                f"and was endowed by the Cheong family.\n"
+                f"The building has over 200 twin rooms (up to 4 students each); the ground floor "
+                f"holds the common areas and the college office ({room}).\n"
+                "Its student-development motto is four Be: sunny, honest, cooperative, driven.")
+    if lang == "zh-Hant":
+        return (f"{PROFILE['name']}（CKLC）是澳大十所住宿式書院之一，"
+                "2016 年在橫琴校區成立，位於 " + b + " 樓，由張氏家族捐資設立。\n"
+                "大樓有 200 多間雙人房，每間最多住 4 人；G 層是公共空間與書院辦公室（" + room + "）。\n"
+                "書院以四個 Be 概括學生成長目標：" + PROFILE["spirit"] + "。")
+    return (f"{PROFILE['name']}（CKLC）是澳大十所住宿式书院之一，"
+            "2016 年在横琴校区成立，位于 " + b + " 楼，由张氏家族捐资设立。\n"
+            "大楼有 200 多间双人房，每间最多住 4 人；G 层是公共空间和书院办公室（" + room + "）。\n"
+            "书院用四个 Be 概括学生成长目标：" + PROFILE["spirit"] + "。")
 
 
 def link_only(lang: str, url: str) -> str:
