@@ -97,6 +97,7 @@
       <select id="fCat"><option value="">全部分类</option></select>
       <input type="text" id="fQ" placeholder="搜问题 / 答案 / 分类" style="width:240px">
       <button class="act" id="btnReload">刷新</button>
+      <button class="act primary" id="btnNew">＋ 新建问答</button>
       <span class="hint" id="queueHint"></span>
     </div>
     <div class="layout">
@@ -132,7 +133,7 @@
     <div class="layout">
       <div class="card" style="overflow:auto;max-height:calc(100vh - 200px)">
         <table>
-          <thead><tr><th>学生问了但没答上来</th><th style="width:70px">次数</th><th style="width:170px">最后出现</th></tr></thead>
+          <thead><tr><th>学生问了但没答上来</th><th style="width:70px">次数</th><th style="width:170px">最后出现</th><th style="width:96px"></th></tr></thead>
           <tbody id="gapRows"></tbody>
         </table>
         <div class="empty" id="gapEmpty" hidden>暂时没有缺口，说明资料够用</div>
@@ -259,7 +260,42 @@ async function openItem(id){
 
 const actName = a => ({approve:"通过",reject:"退回",edit:"修改",archive:"归档",create:"新建"}[a]||a);
 
+// ── 手工新建（没有网页可抓时） ──
+function openNew(prefillQ = ""){
+  S.cur = null;
+  document.querySelectorAll("#rows tr").forEach(tr=>tr.classList.remove("sel"));
+  $("#panel").innerHTML = `
+    <h3>新建问答 <span class="pill">待审</span></h3>
+    <div class="hint" style="margin-bottom:8px">提交后进待审队列，状态是 review；通过后才进检索。</div>
+    <div class="fld"><label>问题（按学生的问法写）</label>
+      <input type="text" id="nQ" value="${esc(prefillQ)}" placeholder="例如：宿舍几点关门？"></div>
+    <div class="fld"><label>答案（只写资料里有的，不推测）</label><textarea id="nA"></textarea></div>
+    <div class="row2">
+      <div class="fld"><label>分类</label><input type="text" id="nCat" value="未分类"></div>
+      <div class="fld"><label>时效</label><select id="nTtl">
+        <option value="A">A 稳定</option><option value="B">B 年度</option><option value="C">C 实时</option></select></div>
+    </div>
+    <div class="fld"><label>来源说明（如《住宿规章》第 4.2 条）</label><input type="text" id="nSrc"></div>
+    <div class="fld"><label>来源链接（有就填，没有会标记未核实）</label><input type="url" id="nUrl"></div>
+    <div class="fld"><label>备注（给下一个审核人看）</label><input type="text" id="nNote"></div>
+    <div class="bar"><button class="act primary" id="nSubmit">提交待审</button>
+      <button class="act" id="nCancel">取消</button></div>`;
+  if(prefillQ) $("#nA").focus();
+  $("#nCancel").onclick = () => { $("#panel").innerHTML = `<div class="empty">点左边任意一条开始审</div>`; };
+  $("#nSubmit").onclick = async () => {
+    try{
+      const d = await api("/api/review/new", {method:"POST", body: JSON.stringify({
+        question: $("#nQ").value, answer: $("#nA").value, category: $("#nCat").value,
+        ttl_type: $("#nTtl").value, source: $("#nSrc").value, source_url: $("#nUrl").value,
+        note: $("#nNote").value })});
+      toast(`已新建 #${d.item_id}，在待审队列里`);
+      loadQueue(); openItem(d.item_id);
+    }catch(e){ toast(e.message, true); }
+  };
+}
+
 $("#btnReload").onclick = loadQueue;
+$("#btnNew").onclick = () => openNew();
 $("#fStatus").onchange = loadQueue; $("#fCat").onchange = loadQueue;
 $("#fQ").oninput = (()=>{let h;return()=>{clearTimeout(h);h=setTimeout(loadQueue,300);}})();
 
@@ -337,7 +373,14 @@ async function loadGaps(){
   const d = await api("/api/review/gaps");
   $("#gapEmpty").hidden = d.unanswered.length > 0;
   $("#gapRows").innerHTML = d.unanswered.map(g=>`
-    <tr><td>${esc(g.question)}</td><td>${g.times}</td><td class="hint">${esc(g.last_seen||"")}</td></tr>`).join("");
+    <tr><td>${esc(g.question)}</td><td>${g.times}</td><td class="hint">${esc(g.last_seen||"")}</td>
+        <td><button class="act" data-gap="${esc(g.question)}">据此新建</button></td></tr>`).join("");
+  document.querySelectorAll("[data-gap]").forEach(b => b.onclick = () => {
+    const q = b.dataset.gap;
+    document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on", x.dataset.tab==="queue"));
+    ["queue","new","gaps"].forEach(t => $("#tab-"+t).hidden = (t !== "queue"));
+    loadQueue(); openNew(q);
+  });
   $("#badList").innerHTML = d.bad.length
     ? d.bad.map(b=>`<div>${esc(b.question)}${b.note?"<br><span class='hint'>"+esc(b.note)+"</span>":""}</div>`).join("")
     : "<div>还没有差评</div>";

@@ -74,6 +74,10 @@ class DraftIn(BaseModel):
     source_url: str = ""
 
 
+class NewIn(DraftIn):
+    note: str = ""
+
+
 @router.get("/review")
 def review_page() -> FileResponse:
     return FileResponse(Path(config.STATIC_DIR) / "review.html")
@@ -228,6 +232,28 @@ def candidate_reject(cid: int, request: Request, note: str = "") -> dict:
 def gaps(request: Request) -> dict:
     _reviewer(request)
     return {"unanswered": db.unanswered(50), "bad": db.bad_feedback(20)}
+
+
+@router.post("/api/review/new")
+def create_new(body: NewIn, request: Request) -> dict:
+    """手工新建一条问答（没有网页可抓时用）。进待审队列，不直接发布。"""
+    who = _reviewer(request)
+    if not body.question.strip() or not body.answer.strip():
+        raise HTTPException(400, "问题和答案都要填")
+    new_id = db.create_item({
+        "question": body.question.strip(),
+        "answer": body.answer.strip(),
+        "category": body.category or "未分类",
+        "ttl_type": body.ttl_type,
+        "source": body.source or "手工录入",
+        "source_url": body.source_url,
+        "source_type": "official" if body.source_url else "unverified",
+        "status": "review",
+        "owner": who,
+        "created_at": date.today().isoformat(),
+    })
+    db.log_review(new_id, "create", who, body.note or "手工新建")
+    return {"ok": True, "item_id": new_id}
 
 
 @router.get("/api/review/categories")
