@@ -5,9 +5,12 @@
 """
 from pathlib import Path
 
+import os
 import re
+import time
+from collections import deque
 
-from fastapi import Depends, FastAPI
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 
@@ -22,6 +25,21 @@ app = FastAPI(title="RC AI Assistant", version="0.1.0")
 app.include_router(review_router)
 
 _state: dict = {"retriever": None, "count": 0}
+
+# 每 IP 每小时提问上限。公网测试阶段必须开着，否则一个脚本就能把额度刷光。
+ASK_LIMIT = int(os.environ.get("ASK_LIMIT_PER_HOUR", "60"))
+_buckets: dict[str, deque] = {}
+
+
+def _allow(key: str) -> bool:
+    now = time.time()
+    dq = _buckets.setdefault(key, deque())
+    while dq and now - dq[0] > 3600:
+        dq.popleft()
+    if len(dq) >= ASK_LIMIT:
+        return False
+    dq.append(now)
+    return True
 
 
 def reload_kb() -> int:
@@ -63,12 +81,17 @@ def stats() -> dict:
 
 
 @app.post("/api/ask")
-def ask(body: AskIn, user: User = Depends(get_current_user)) -> dict:
+def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -> dict:
     q = (body.question or "").strip()
     if not q:
         return {"error": "question 不能为空"}
     if len(q) > 300:
         q = q[:300]
+
+    # 公网暴露后必须限流：模型按 token 计费，被刷就是真金白银
+    ip = request.client.host if request.client else "?"
+    if not _allow(ip):
+        raise HTTPException(429, f"问得太快了，每小时最多 {ASK_LIMIT} 次。稍等一会儿再问，或直接联系书院办公室。")
 
     hits = _state["retriever"].search(q, k=body.top_k)
     result = answer_mod.answer(q, hits)

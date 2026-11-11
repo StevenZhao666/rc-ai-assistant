@@ -7,3 +7,6 @@ ref/
 data/*.jsonl
 data/*.log
 data/simtest_results.json
+data/tunnel.out
+data/tunnel.log
+data/server-*.log

@@ -69,6 +69,12 @@
   .toast.err{background:var(--bad)}
   pre.raw{white-space:pre-wrap;background:#fbfcfd;border:1px solid var(--line);border-radius:6px;
           padding:8px;max-height:220px;overflow:auto;font-size:12px;line-height:1.5}
+  .notice{background:#fff8e6;border:1px solid #efdca8;color:#5c4700;border-radius:8px;
+          padding:10px 12px;font-size:13px;line-height:1.7;margin-bottom:12px}
+  .notice details{margin-top:6px}
+  .notice summary{cursor:pointer;color:#7a5c00;font-weight:600}
+  .notice ul{margin:6px 0 0 18px;padding:0}
+  .notice li{margin:3px 0}
 </style>
 </head>
 <body>
@@ -84,6 +90,22 @@
 </nav>
 
 <main>
+  <div class="notice">
+    <b>怎么用</b>：点左边一条 → 右边看问题、答案、来源 → 点开「来源链接」核对原文 →
+    数字、日期、电话、房间号都对得上，就点 <b>通过并发布</b>；拿不准就 <b>退回</b> 并写一句理由。
+    退错没人怪你，批错才会出事。
+    <details>
+      <summary>责任声明（点开看，批之前请读一次）</summary>
+      <ul>
+        <li><b>你点「通过」，就等于你确认</b>：这条答案与来源原文一致、时效标注正确、不含个人推测。内容责任在审批人，不在系统。</li>
+        <li><b>系统只做三件事</b>：留痕（谁在什么时候改了什么）、流转（待审/发布/归档）、拦截（没通过的不进检索）。系统不保证内容正确。</li>
+        <li><b>批错了怎么办</b>：立刻改回或归档，并在备注里写原因。操作记录不会删除——这是保护你，也是保护学生。</li>
+        <li><b>不许写进库的东西</b>：学生姓名、学号、成绩、门禁/消费记录等个人信息。知识库只放公开的规章制度。</li>
+        <li><b>不要自己下结论的领域</b>：纪律处分、法律纠纷、医疗与心理危机。遇到就退回，让办公室出面。</li>
+        <li><b>发现资料本身过时</b>：不要顺着旧答案批，先归档，再去官网找新版本重新建一条。</li>
+      </ul>
+    </details>
+  </div>
   <!-- 待审 -->
   <section id="tab-queue">
     <div class="bar">
