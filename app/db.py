@@ -151,12 +151,22 @@ def published_items() -> list[dict]:
 
 
 def log_qa(student_id: str, question: str, answer: str, top_score: float) -> None:
+    ts = datetime.now().isoformat(timespec="seconds")
     with connect(write=True) as conn:
         conn.execute(
             "INSERT INTO qa_log (ts, student_id, question, answer, top_score) VALUES (?,?,?,?,?)",
-            (datetime.now().isoformat(timespec="seconds"), student_id, question, answer, top_score),
+            (ts, student_id, question, answer, top_score),
         )
         conn.commit()
+    # 同时写一份 append-only 的流水：库被删/重建也不影响这份记录
+    try:
+        with (config.DATA_DIR / "qa_log.jsonl").open("a", encoding="utf-8") as f:
+            f.write(json.dumps({"ts": ts, "who": student_id, "q": question,
+                                "score": round(top_score, 2), "len": len(answer or "")},
+                               ensure_ascii=False) + "
+")
+    except Exception:
+        pass
 
 
 def stats() -> dict:
