@@ -12,7 +12,7 @@
 """
 import re
 
-_CC = "唔嘅喺咗冇佢哋睇嘢邊點閂噉咁啲攞搵嚟"
+_CC = "唔嘅喺咗冇佢哋睇嘢邊點閂噉咁啲攞搵嚟咩係"
 _HANT = "書院房間證復讓與為這個們學會東發實現點麼樣辦規則圖書館"
 _LATIN = re.compile(r"[A-Za-z]")
 _HAN = re.compile(r"[\u4e00-\u9fff]")
@@ -24,9 +24,52 @@ def detect_lang(text: str) -> str:
     han = len(_HAN.findall(t))
     if latin > han and latin >= 3:
         return "en"
-    if any(ch in t for ch in _CC) or sum(1 for ch in t if ch in _HANT) >= 2:
+    if any(ch in t for ch in _CC):
         return "zh-Hant"
+    # 逐字比对哪边需要转换：繁体字多 → 繁体提问，简体字多 → 简体提问。
+    # （旧版只看 _HANT 词表，像「你是誰？」只有一个繁体字，会被当成简体）
+    try:
+        s2t = _cc("s2t").convert(t)
+        t2s = _cc("t2s").convert(t)
+        trad = sum(1 for a, b in zip(t, t2s) if a != b)
+        simp = sum(1 for a, b in zip(t, s2t) if a != b)
+        if trad > simp:
+            return "zh-Hant"
+    except Exception:  # noqa: BLE001
+        if sum(1 for ch in t if ch in _HANT) >= 2:
+            return "zh-Hant"
     return "zh-Hans"
+
+
+_OPENCC = {}
+
+
+def _cc(name: str):
+    """缓存 OpenCC 转换器（构建一次约几十毫秒，不能每个请求重建）。"""
+    cc = _OPENCC.get(name)
+    if cc is None:
+        import opencc
+        cc = _OPENCC[name] = opencc.OpenCC(name)
+    return cc
+
+
+def normalize_script(text: str, lang: str) -> str:
+    """把回答统一成提问的语言字形。
+
+    模型（尤其关了思考的小模型）常把繁问简答、或把简体原文整段抄进繁体回答。
+    这里用 OpenCC 兜一层：繁体→s2t（会把「张昆仑书院」正确转成「張崑崙書院」），
+    简体→t2s；吉祥物名字单独校正成「崑崑」/「昆昆」。
+    """
+    if not text or lang not in ("zh-Hans", "zh-Hant"):
+        return text
+    key = "s2t" if lang == "zh-Hant" else "t2s"
+    try:
+        text = _cc(key).convert(text)
+    except Exception:  # noqa: BLE001  没装 opencc 就只做名字替换
+        pass
+    if lang == "zh-Hant":
+        return text.replace("昆昆", "崑崑")
+    return text.replace("崑崑", "昆昆")
 
 
 def office_line(lang: str) -> str:
@@ -66,7 +109,7 @@ def meta_identity(lang: str) -> str:
     if lang == "en":
         return "I am Kunkun, the mascot of Cheong Kun Lun College. Ask me about rooms, facilities, hall rules or forms. What do you need?"
     if lang == "zh-Hant":
-        return "我係昆昆，張崑崙書院嘅吉祥物。房務、設施、院規、辦事流程都可以問我，你想查邊樣？"
+        return "我係崑崑，張崑崙書院嘅吉祥物。房務、設施、院規、辦事流程都可以問我，你想查邊樣？"
     return "我是昆昆，张昆仑书院的吉祥物。房务、设施、院规、办事流程都可以问我，你想查哪件？"
 
 
@@ -75,7 +118,7 @@ def smalltalk(lang: str) -> str:
     if lang == "en":
         return "Hi! I am Kunkun. What would you like to know about the college — rooms, facilities, rules or procedures?"
     if lang == "zh-Hant":
-        return "你好！我是昆昆。想問書院哪方面的事？住宿、設施、規章、辦事流程都可以。"
+        return "你好！我是崑崑。想問書院哪方面的事？住宿、設施、規章、辦事流程都可以。"
     return "你好！我是昆昆。想问书院哪方面的事？住宿、设施、规章、办事流程都可以。"
 
 

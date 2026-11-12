@@ -35,6 +35,9 @@ OFFICE_HOURS = "周一至周四 09:30-13:00 / 14:30-17:45，周五 09:30-13:00 /
 LLM_BASE = os.environ.get("LLM_BASE", "").rstrip("/")
 LLM_KEY = os.environ.get("LLM_KEY", "")
 LLM_MODEL = os.environ.get("LLM_MODEL", "qwen3.8-27b")
+# 推理型模型（如 deepseek-flash）默认会先想一大段，短回答会被 max_tokens 截成空串。
+# 默认关掉思考；要开就 LLM_THINKING=on。带 thinking 参数被供应商拒绝时会自动去掉重试。
+LLM_THINKING = os.environ.get("LLM_THINKING", "off").strip().lower() in ("on", "1", "true", "yes")
 
 # 检索阈值：低于它就不答，走兜底卡片
 MIN_SCORE = float(os.environ.get("MIN_SCORE", "2.5"))

@@ -144,6 +144,31 @@ def _extractive(question: str, hits: list[dict]) -> dict:
     return {"mode": "extractive", "text": text, "used": used}
 
 
+def _post(payload: dict, timeout: int) -> dict:
+    """发 OpenAI 兼容请求。带 thinking 参数被供应商拒绝（400/404/422）时去掉重试一次。"""
+    body = dict(payload)
+    if not config.LLM_THINKING:
+        body["thinking"] = {"type": "disabled"}
+    try:
+        return _post_once(body, timeout)
+    except urllib.error.HTTPError as e:
+        if e.code in (400, 404, 422) and "thinking" in body:
+            body.pop("thinking", None)
+            print("[info] 该接口不认 thinking 参数，已去掉重试")
+            return _post_once(body, timeout)
+        raise
+
+
+def _post_once(body: dict, timeout: int) -> dict:
+    req = urllib.request.Request(
+        config.LLM_BASE + "/chat/completions",
+        data=json.dumps(body).encode(),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {config.LLM_KEY}"},
+    )
+    with urllib.request.urlopen(req, timeout=timeout) as r:
+        return json.loads(r.read())
+
+
 def _llm(question: str, hits: list[dict]) -> dict | None:
     """OpenAI 兼容接口。失败返回 None，让调用方退回抽取式。"""
     if not (config.LLM_BASE and config.LLM_KEY):
@@ -155,12 +180,12 @@ def _llm(question: str, hits: list[dict]) -> dict | None:
     )
     system = (
         context_block()
-        + f"\n\n你是「昆昆」，{config.COLLEGE_NAME}的吉祥物兼资料助手。语气像住了一年的学长：先结论后细节，短句，不客套，不自称「AI」。\n"
+        + f"\n\n你是「崑崑」（简体字写作「昆昆」），{config.COLLEGE_NAME}的吉祥物兼资料助手。语气像住了一年的学长：先结论后细节，短句，不客套，不自称「AI」。\n"
         "怎么答：\n"
         "1. 第一句直接给答案，不用「您好」「根据资料」开场，也不复述页面已有的免责声明。\n"
         "2. 有步骤、条件、多个地点就分点，一点一句。\n"
         "3. 用到检索资料就在句末标 [编号]，没用到不标，也不要编编号。\n"
-        "4. 问「你是谁」「你能做什么」或闲聊：就说自己是昆昆，书院的吉祥物；不列能力清单、不列禁区清单；"
+        "4. 问「你是谁」「你能做什么」或闲聊：就说自己是崑崑（简体写作昆昆），书院的吉祥物；不列能力清单、不列禁区清单；"
         "再问「你想查哪件？」。\n"
         "5. 问得宽泛（如「书院介绍」）：先用资料给三五句概括，再问想深入哪方面。\n"
         "6. 资料只够答一部分：先答有的，再说缺哪部分、该问谁或看哪页。\n"
@@ -184,14 +209,8 @@ def _llm(question: str, hits: list[dict]) -> dict | None:
         "temperature": 0.3,
         "max_tokens": 500,
     }
-    req = urllib.request.Request(
-        config.LLM_BASE + "/chat/completions",
-        data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {config.LLM_KEY}"},
-    )
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
-            data = json.loads(r.read())
+        data = _post(payload, 60)
         usage = data.get("usage") or {}
         _log_usage(config.LLM_MODEL, usage)
         text = data["choices"][0]["message"]["content"].strip()
@@ -252,14 +271,8 @@ def _llm_raw(messages: list[dict], max_tokens: int = 120, temp: float = 0.3) -> 
         return None
     payload = {"model": config.LLM_MODEL, "messages": messages,
                "temperature": temp, "max_tokens": max_tokens}
-    req = urllib.request.Request(
-        config.LLM_BASE + "/chat/completions",
-        data=json.dumps(payload).encode(),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {config.LLM_KEY}"},
-    )
     try:
-        with urllib.request.urlopen(req, timeout=30) as r:
-            data = json.loads(r.read())
+        data = _post(payload, 30)
         _log_usage(config.LLM_MODEL + ":gate", data.get("usage") or {})
         return (data["choices"][0]["message"]["content"] or "").strip()
     except Exception as e:  # noqa: BLE001
@@ -276,7 +289,7 @@ GATE_SYS = """你是一个意图分类器。判断用户这句话是否需要查
 def needs_kb(question: str) -> bool | None:
     """让模型判一次：需不需要查资料。没模型可用时返回 None（调用方退回关键词）。"""
     out = _llm_raw([{"role": "system", "content": GATE_SYS},
-                    {"role": "user", "content": question}], max_tokens=4, temp=0)
+                    {"role": "user", "content": question}], max_tokens=8, temp=0)
     if out is None:
         return None
     return out.strip().startswith("1")
@@ -285,16 +298,23 @@ def needs_kb(question: str) -> bool | None:
 def chat_reply(question: str, lang: str) -> str:
     """闲聊直接由模型生成一句自然的回应，不查资料、不列能力清单。"""
     sys = (
-        "你是昆昆，澳门大学张昆仑书院的吉祥物兼助手。"
+        "你是崑崑（简体写作昆昆），澳门大学张昆仑书院的吉祥物兼助手。"
         "现在对方在寒暄或闲聊，直接自然回应一句到两句，语气像熟悉的学长；"
         "不要提「资料库」，不要罗列能力清单，不要每句都让人去问办公室。"
-        "如果对方问你是谁，就说自己是昆昆、书院的吉祥物。"
+        "如果对方问你是谁，就说自己是崑崑（简体写作昆昆）、书院的吉祥物。"
         "硬规矩：不编造任何事实（天气、价格、时间、新闻、成绩都不许猜）；"
         "做不到的事不要答应（看代码、写作业、预测成绩、查个人记录）；"
         "被问到这类就说自己查不了或帮不上，最多给一个方向。"
         "语言跟提问严格一致：简体提问必须用简体汉字回答，不要夹粤语字（唔/嘅/咗/喺）；"
         "粤语口语提问才用繁体口语；英文提问用英文。"
     )
+    if lang == "zh-Hant":
+        sys += ("对方用繁体中文提问：整段回答必须全部是繁体字，名字写「崑崑」，"
+                "一个简体字都不许出现；对方用粤语口语就用繁体口语回。")
+    elif lang == "en":
+        sys += "Answer in English only."
+    else:
+        sys += "对方用简体中文提问：整段回答必须全部是简体字，名字写「昆昆」，不要出现繁体字。"
     out = _llm_raw([{"role": "system", "content": sys},
                     {"role": "user", "content": question}], max_tokens=180, temp=0.6)
     if out:
@@ -343,6 +363,14 @@ def _intro_from_kb(lang: str) -> dict | None:
 
 
 def answer(question: str, hits: list[dict], allow_llm: bool = True) -> dict:
+    """对外入口：算完回答后统一字形（繁问繁答、简问简答），再返回。"""
+    out = _answer_impl(question, hits, allow_llm)
+    if out.get("text"):
+        out["text"] = i18n.normalize_script(out["text"], i18n.detect_lang(question))
+    return out
+
+
+def _answer_impl(question: str, hits: list[dict], allow_llm: bool = True) -> dict:
     lang = i18n.detect_lang(question)
 
     # 一、越界问题（必须最先判：代写/医疗/情绪/安全不能被当成闲聊）（急救、医疗、代写、情绪、人身安全）：不检索，直接给专用话术
