@@ -8,6 +8,8 @@
 """
 import json
 import re
+import threading
+import time
 import urllib.error
 import urllib.request
 from datetime import datetime
@@ -144,28 +146,82 @@ def _extractive(question: str, hits: list[dict]) -> dict:
     return {"mode": "extractive", "text": text, "used": used}
 
 
-def _post(payload: dict, timeout: int) -> dict:
-    """发 OpenAI 兼容请求。带 thinking 参数被供应商拒绝（400/404/422）时去掉重试一次。"""
+_SLOTS: dict[str, "threading.Semaphore"] = {}
+_COOLDOWN: dict[str, float] = {}   # 模型名 → 冷却到什么时候
+
+
+def _slot(base: str, n: int) -> "threading.Semaphore":
+    s = _SLOTS.get(base)
+    if s is None:
+        s = _SLOTS[base] = threading.Semaphore(n)
+    return s
+
+
+def _ask_provider(p: dict, payload: dict, timeout: int) -> dict:
+    """对单个供应商发一次（被拒 thinking 时去掉重试），返回 data；内容为空抛 RuntimeError。"""
     body = dict(payload)
+    body["model"] = p["model"]
     if not config.LLM_THINKING:
         body["thinking"] = {"type": "disabled"}
     try:
-        return _post_once(body, timeout)
+        data = _post_once(body, timeout, p)
     except urllib.error.HTTPError as e:
         if e.code in (400, 404, 422) and "thinking" in body:
             body.pop("thinking", None)
-            print("[info] 该接口不认 thinking 参数，已去掉重试")
-            return _post_once(body, timeout)
-        raise
+            data = _post_once(body, timeout, p)
+        else:
+            raise
+    msg = (data.get("choices") or [{}])[0].get("message") or {}
+    if data.get("error") or not (msg.get("content") or "").strip():
+        err = data.get("error") or {}
+        raise RuntimeError(err.get("message") or "空回复")
+    return data
 
 
-def _post_once(body: dict, timeout: int) -> dict:
+def _post(payload: dict, timeout: int) -> dict:
+    """按供应商链依次尝试：主模型 → 备用模型 → 另一家。
+
+    有并发上限的供应商（智谱免费档 1 并发）先在本地排队 LLM_QUEUE_WAIT 秒，
+    排不上就直接换下一环，别让学生干等。带 thinking 被拒时去掉重试一次。
+    """
+    if not config.LLM_CHAIN:
+        raise RuntimeError("没有配置模型（LLM_BASE/LLM_KEY 为空）")
+    errors: list[str] = []
+    deadline = time.monotonic() + config.LLM_QUEUE_WAIT   # 排队总预算，不是每个模型各等一次
+    for p in config.LLM_CHAIN:
+        if _COOLDOWN.get(p["model"], 0) > time.time():
+            errors.append(f"{p['model']}: 冷却中")
+            continue
+        sem = _slot(p["base"], p["limit"]) if p.get("limit") else None
+        got = True
+        if sem is not None:
+            got = sem.acquire(timeout=max(0.5, deadline - time.monotonic()))
+            if not got:
+                errors.append(f"{p['model']}: 排队超时")
+                continue
+        try:
+            data = _ask_provider(p, payload, timeout)
+        except Exception as e:  # noqa: BLE001
+            errors.append(f"{p['model']}: {e}")
+            if "429" in str(e) or "1305" in str(e) or "1302" in str(e) or "速率" in str(e):
+                _COOLDOWN[p["model"]] = time.time() + 60   # 限流了就 60s 别再撞
+            continue
+        finally:
+            if got and sem is not None:
+                sem.release()
+        if p["model"] != config.LLM_MODEL:
+            print(f"[info] 主模型不可用，已切到 {p['model']}")
+        return data
+    raise RuntimeError("所有模型都不可用：" + "; ".join(errors[:4]))
+
+
+def _post_once(body: dict, timeout: int, p: dict) -> dict:
     req = urllib.request.Request(
-        config.LLM_BASE + "/chat/completions",
+        p["base"] + "/chat/completions",
         data=json.dumps(body).encode(),
-        headers={"Content-Type": "application/json", "Authorization": f"Bearer {config.LLM_KEY}"},
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {p['key']}"},
     )
-    with urllib.request.urlopen(req, timeout=timeout) as r:
+    with urllib.request.urlopen(req, timeout=min(timeout, config.LLM_TIMEOUT)) as r:
         return json.loads(r.read())
 
 
@@ -212,7 +268,7 @@ def _llm(question: str, hits: list[dict]) -> dict | None:
     try:
         data = _post(payload, 60)
         usage = data.get("usage") or {}
-        _log_usage(config.LLM_MODEL, usage)
+        _log_usage(data.get("model") or config.LLM_MODEL, usage)
         text = data["choices"][0]["message"]["content"].strip()
         # 解析模型标注的 [n]，只把这些条目当引用展示
         used = sorted({int(m) for m in re.findall(r"\[(\d+)\]", text)})
