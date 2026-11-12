@@ -12,6 +12,7 @@ from collections import deque
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import answer as answer_mod
@@ -23,6 +24,7 @@ from .review import set_reload
 
 app = FastAPI(title="RC AI Assistant", version="0.1.0")
 app.include_router(review_router)
+app.mount("/img", StaticFiles(directory=str(config.STATIC_DIR / "img")), name="img")
 
 _state: dict = {"retriever": None, "count": 0}
 
