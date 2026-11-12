@@ -173,7 +173,7 @@ function renderCitations(bubble, cites) {
 // ── 反馈 ─────────────────────────────────────────
 async function sendFeedback(q, ans, mode, vote, note) {
   try {
-    const r = await fetch('/api/feedback', {
+    const r = await fetch('api/feedback', {
       method: 'POST', headers: headers(),
       body: JSON.stringify({question: q, answer: ans, vote, note: note || '', mode: mode || ''})
     });
@@ -199,10 +199,17 @@ function addFeedback(bubble, q, ans, mode) {
     voted = true;
     btn.classList.add('on');
     const ok = await sendFeedback(q, ans, mode, vote, note);
-    const tip = document.createElement('span');
-    tip.className = 'done';
-    tip.textContent = ok ? '已记录，谢谢' : '记录失败（可能没网）';
-    row.appendChild(tip);
+    if (ok) {
+      row.innerHTML = '<span class="done">感谢反馈 ✓</span>';
+    } else {
+      voted = false;
+      btn.classList.remove('on');
+      const tip = document.createElement('span');
+      tip.className = 'done';
+      tip.style.color = 'var(--warn)';
+      tip.textContent = '记录失败，可能没网，再试一次';
+      row.appendChild(tip);
+    }
   };
 
   up.onclick = () => submit(1, up);
@@ -223,7 +230,7 @@ async function ask(text) {
   sendBtn.disabled = true;
   const b = addMsg('ai', '检索中…');
   try {
-    const r = await fetch('/api/ask', {
+    const r = await fetch('api/ask', {
       method: 'POST', headers: headers(),
       body: JSON.stringify({question: text})
     });
@@ -257,12 +264,12 @@ document.querySelectorAll('.quick span').forEach(s => s.onclick = () => ask(s.da
 
 (async () => {
   try {
-    const me = await (await fetch('/api/me', {headers: headers()})).json();
+    const me = await (await fetch('api/me', {headers: headers()})).json();
     if (!sid() && me.student_id && me.student_id !== 'UC000000') {
       localStorage.setItem(SID_KEY, me.student_id);
       paintWho();
     }
-    const h = await (await fetch('/health')).json();
+    const h = await (await fetch('health')).json();
     document.getElementById('mode').textContent = h.model === 'llm' ? '模型模式' : '抽取式（未接模型）';
   } catch (e) { /* 身份接口异常不影响提问 */ }
 })();

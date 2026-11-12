@@ -228,7 +228,7 @@ document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
 // ── 队列 ──
 async function loadQueue(){
   const q = new URLSearchParams({ status:$("#fStatus").value, q:$("#fQ").value, category:$("#fCat").value });
-  const d = await api("/api/review/queue?"+q);
+  const d = await api("api/review/queue?"+q);
   $("#cQueue").textContent = d.count;
   $("#queueEmpty").hidden = d.count > 0;
   $("#rows").innerHTML = d.items.map(it => `
@@ -248,7 +248,7 @@ const statusName = s => ({review:"待审",draft:"草稿",published:"已发布",a
 async function openItem(id, target = "#panel"){
   S.cur = id;
   document.querySelectorAll("#rows tr, #rcRows tr").forEach(tr=>tr.classList.toggle("sel", +tr.dataset.id===id));
-  const d = await api("/api/review/item/"+id);
+  const d = await api("api/review/item/"+id);
   S.item = d.item; S.version = d.item.version || 1;
   const it = d.item, w = (it.warnings||[]);
   $(target).innerHTML = `
@@ -331,7 +331,7 @@ function openNew(prefillQ = ""){
   $("#nCancel").onclick = () => { $("#panel").innerHTML = `<div class="empty">点左边任意一条开始审</div>`; };
   $("#nSubmit").onclick = async () => {
     try{
-      const d = await api("/api/review/new", {method:"POST", body: JSON.stringify({
+      const d = await api("api/review/new", {method:"POST", body: JSON.stringify({
         question: $("#nQ").value, answer: $("#nA").value, category: $("#nCat").value,
         ttl_type: $("#nTtl").value, source: $("#nSrc").value, source_url: $("#nUrl").value,
         note: $("#nNote").value })});
@@ -347,7 +347,7 @@ $("#fStatus").onchange = loadQueue; $("#fCat").onchange = loadQueue;
 $("#fQ").oninput = (()=>{let h;return()=>{clearTimeout(h);h=setTimeout(loadQueue,300);}})();
 
 async function loadCats(){
-  const d = await api("/api/review/categories");
+  const d = await api("api/review/categories");
   S.cats = d.categories;
   $("#fCat").innerHTML = `<option value="">全部分类</option>` +
     d.categories.map(c=>`<option value="${esc(c.name)}">${esc(c.name)}（${c.n}）</option>`).join("");
@@ -355,7 +355,7 @@ async function loadCats(){
 
 // ── 待复核 ──
 async function loadRecheck(){
-  const d = await api("/api/review/recheck");
+  const d = await api("api/review/recheck");
   $("#cRecheck").textContent = d.count;
   $("#rcEmpty").hidden = d.count > 0;
   $("#rcRows").innerHTML = d.items.map(it => {
@@ -376,7 +376,7 @@ $("#btnReloadRc").onclick = loadRecheck;
 
 // ── 新资料 ──
 async function loadCands(){
-  const d = await api("/api/review/candidates?status=new");
+  const d = await api("api/review/candidates?status=new");
   $("#cCand").textContent = d.items.length;
   $("#candList").innerHTML = d.items.length ? d.items.map(c=>`
     <div class="cand" data-id="${c.id}">
@@ -391,7 +391,7 @@ $("#btnScan").onclick = async () => {
   if(!url) return toast("先贴链接", true);
   $("#btnScan").disabled = true; $("#btnScan").textContent = "抓取中…";
   try{
-    const d = await api("/api/review/scan", {method:"POST", body: JSON.stringify({url})});
+    const d = await api("api/review/scan", {method:"POST", body: JSON.stringify({url})});
     toast(`已抓取 ${d.chars} 字：${d.title||url}`);
     $("#scanUrl").value = ""; await loadCands(); openCand(d.candidate_id);
   }catch(e){ toast(e.message, true); }
@@ -400,7 +400,7 @@ $("#btnScan").onclick = async () => {
 
 function openCand(id){
   const c = (window._cands||[]).find(x=>x.id===id);
-  api("/api/review/candidates?status=new").then(d=>{
+  api("api/review/candidates?status=new").then(d=>{
     const cc = d.items.find(x=>x.id===id); if(!cc) return;
     S.cand = cc;
     $("#candPanel").innerHTML = `
@@ -438,7 +438,7 @@ function openCand(id){
 
 // ── 缺口 ──
 async function loadGaps(){
-  const d = await api("/api/review/gaps");
+  const d = await api("api/review/gaps");
   $("#gapEmpty").hidden = d.unanswered.length > 0;
   $("#gapRows").innerHTML = d.unanswered.map(g=>`
     <tr><td>${esc(g.question)}</td><td>${g.times}</td><td class="hint">${esc(g.last_seen||"")}</td>
@@ -458,7 +458,7 @@ async function loadGaps(){
 (async () => {
   await loadCats().catch(()=>{});
   await loadQueue().catch(e=>{ $("#panel").innerHTML = `<div class="empty">${esc(e.message)}<br>先在右上角填审核人</div>`; });
-  const st = await api("/api/review/stats").catch(()=>null);
+  const st = await api("api/review/stats").catch(()=>null);
   if(st){ $("#cQueue").textContent = (st.by_status.review||0); $("#cRecheck").textContent = (st.recheck||0); }
 })();
 </script>
