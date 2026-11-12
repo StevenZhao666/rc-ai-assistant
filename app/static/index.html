@@ -18,6 +18,8 @@
   header h1{font-size:16px;margin:0;font-weight:600}
   .pill{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
   .pill.ok{color:var(--ok);border-color:rgba(56,180,139,.4)}
+  .pill.btn{cursor:pointer}
+  .pill.btn:hover{border-color:var(--accent);color:var(--fg)}
   main{max-width:840px;margin:0 auto;padding:24px 20px 140px}
   .msg{margin:18px 0;display:flex;gap:10px}
   .msg .who{flex:0 0 34px;height:34px;border-radius:10px;display:grid;place-items:center;
@@ -30,6 +32,12 @@
   .tag{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:6px;margin:4px 6px 0 0;
        background:rgba(240,180,41,.12);color:var(--warn);border:1px solid rgba(240,180,41,.35)}
   .fail{border-color:rgba(240,180,41,.45)}
+  .fb{display:flex;gap:8px;align-items:center;margin-top:10px}
+  .fb button{background:transparent;border:1px solid var(--line);color:var(--dim);
+             font-size:12.5px;padding:3px 10px;border-radius:8px;cursor:pointer;font-weight:500}
+  .fb button:hover{border-color:var(--accent);color:var(--fg)}
+  .fb button.on{background:rgba(75,141,253,.16);border-color:var(--accent);color:var(--fg)}
+  .fb .done{font-size:12px;color:var(--ok)}
   footer{position:fixed;bottom:0;left:0;right:0;background:rgba(15,17,21,.96);
          border-top:1px solid var(--line);padding:14px 20px}
   .box{max-width:840px;margin:0 auto;display:flex;gap:10px}
@@ -48,7 +56,7 @@
 <body>
 <header>
   <h1>张昆仑书院 · AI 助手</h1>
-  <span class="pill" id="who">读取身份中…</span>
+  <span class="pill btn" id="who" title="点这里填学号">未填学号</span>
   <span class="pill" id="mode">模式…</span>
   <span class="pill">本地演示版 · 数据未审核</span>
   <span class="pill">AI 生成 · 仅供参考</span>
@@ -87,16 +95,51 @@
 const log = document.getElementById('log');
 const qEl = document.getElementById('q');
 const sendBtn = document.getElementById('send');
+const whoEl = document.getElementById('who');
 
-(async () => {
-  try {
-    const me = await (await fetch('/api/me')).json();
-    document.getElementById('who').textContent = '已登录：' + me.student_id;
-    const h = await (await fetch('/health')).json();
-    document.getElementById('mode').textContent = h.model === 'llm' ? '模型模式' : '抽取式（未接模型）';
-  } catch (e) { document.getElementById('who').textContent = '身份接口异常'; }
-})();
+// ── 学号 ─────────────────────────────────────────
+const SID_KEY = 'cklc_sid';
+const DEV_KEY = 'cklc_dev';
 
+function sid() { return localStorage.getItem(SID_KEY) || ''; }
+
+// 设备号：只存在本机，用来防止「换个学号就重置额度」
+function devId() {
+  let d = localStorage.getItem(DEV_KEY);
+  if (!d) {
+    d = (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random()));
+    localStorage.setItem(DEV_KEY, d);
+  }
+  return d;
+}
+
+function paintWho() {
+  const s = sid();
+  whoEl.textContent = s ? ('学号：' + s) : '未填学号（点这里填）';
+  whoEl.classList.toggle('ok', !!s);
+}
+
+whoEl.onclick = () => {
+  const v = prompt('填写你的学号（只用于统计，不会公开；例如 uc00001 或 UC593618）', sid());
+  if (v === null) return;
+  const t = v.trim();
+  if (!t) { localStorage.removeItem(SID_KEY); paintWho(); return; }
+  if (!/^[A-Za-z]{2}\d{5,6}$/.test(t)) {
+    alert('学号格式：2 个字母 + 5 或 6 位数字，例如 uc00001（账号）或 UC593618（正式学号）');
+    return;
+  }
+  localStorage.setItem(SID_KEY, t);
+  paintWho();
+};
+paintWho();
+
+function headers() {
+  const h = {'Content-Type': 'application/json', 'X-Device-Id': devId()};
+  if (sid()) h['X-Student-Id'] = sid();
+  return h;
+}
+
+// ── 消息 ─────────────────────────────────────────
 function addMsg(role, text) {
   const el = document.createElement('div');
   el.className = 'msg ' + role;
@@ -114,7 +157,7 @@ function renderCitations(bubble, cites) {
   cites.forEach((c, i) => {
     const d = document.createElement('div');
     d.style.marginTop = i ? '8px' : '0';
-    d.innerHTML = `<b>依据 ${i+1}：</b>${c.source}`
+    d.innerHTML = `<b>依据 ${i+1}：</b>${c.source || '书院资料'}`
       + (c.verified_at ? `（核实于 ${c.verified_at}）` : '（未核实）')
       + `<div style="margin-top:2px">匹配条目：${c.question}</div>`;
     (c.warnings || []).forEach(w => {
@@ -127,22 +170,79 @@ function renderCitations(bubble, cites) {
   bubble.appendChild(box);
 }
 
+// ── 反馈 ─────────────────────────────────────────
+async function sendFeedback(q, ans, mode, vote, note) {
+  try {
+    const r = await fetch('/api/feedback', {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({question: q, answer: ans, vote, note: note || '', mode: mode || ''})
+    });
+    return r.ok;
+  } catch (e) { return false; }
+}
+
+function addFeedback(bubble, q, ans, mode) {
+  const row = document.createElement('div');
+  row.className = 'fb';
+  row.innerHTML = '<button data-v="1">👍 有用</button><button data-v="-1">👎 没用</button>';
+  const [up, down] = row.querySelectorAll('button');
+  let voted = false;
+
+  const submit = async (vote, btn) => {
+    if (voted) return;
+    let note = '';
+    if (vote === -1) {
+      const n = prompt('哪里不对？（可以不填，直接确定）', '');
+      if (n === null) return;
+      note = n.trim();
+    }
+    voted = true;
+    btn.classList.add('on');
+    const ok = await sendFeedback(q, ans, mode, vote, note);
+    const tip = document.createElement('span');
+    tip.className = 'done';
+    tip.textContent = ok ? '已记录，谢谢' : '记录失败（可能没网）';
+    row.appendChild(tip);
+  };
+
+  up.onclick = () => submit(1, up);
+  down.onclick = () => submit(-1, down);
+  bubble.appendChild(row);
+}
+
+// ── 提问 ─────────────────────────────────────────
 async function ask(text) {
   if (!text.trim()) return;
+  if (!sid()) {
+    whoEl.classList.add('fail');
+    whoEl.textContent = '先点这里填学号';
+    setTimeout(paintWho, 1800);
+  }
   addMsg('user', text);
   qEl.value = '';
   sendBtn.disabled = true;
   const b = addMsg('ai', '检索中…');
   try {
     const r = await fetch('/api/ask', {
-      method: 'POST',
-      headers: {'Content-Type': 'application/json'},
+      method: 'POST', headers: headers(),
       body: JSON.stringify({question: text})
     });
+    if (r.status === 429) {
+      const e = await r.json();
+      b.textContent = e.detail || '这个小时问得太多了，过一会儿再来。';
+      return;
+    }
     const data = await r.json();
     b.textContent = data.answer || JSON.stringify(data);
-    if (data.mode === 'fallback') b.classList.add('fail');
+    if ((data.mode || '').startsWith('fallback')) b.classList.add('fail');
     renderCitations(b, data.citations);
+    addFeedback(b, text, b.textContent, data.mode);
+    if (data.quota && data.quota.llm_left === 0) {
+      const tip = document.createElement('div');
+      tip.className = 'cite';
+      tip.textContent = '本小时的 AI 回答次数用完了，后面会改为直接摘录资料原文。';
+      b.appendChild(tip);
+    }
   } catch (e) {
     b.textContent = '请求失败：' + e;
   } finally {
@@ -154,6 +254,19 @@ async function ask(text) {
 sendBtn.onclick = () => ask(qEl.value);
 qEl.addEventListener('keydown', e => { if (e.key === 'Enter') ask(qEl.value); });
 document.querySelectorAll('.quick span').forEach(s => s.onclick = () => ask(s.dataset.q));
+
+(async () => {
+  try {
+    const me = await (await fetch('/api/me', {headers: headers()})).json();
+    if (!sid() && me.student_id && me.student_id !== 'UC000000') {
+      localStorage.setItem(SID_KEY, me.student_id);
+      paintWho();
+    }
+    const h = await (await fetch('/health')).json();
+    document.getElementById('mode').textContent = h.model === 'llm' ? '模型模式' : '抽取式（未接模型）';
+  } catch (e) { /* 身份接口异常不影响提问 */ }
+})();
+
 qEl.focus();
 </script>
 </body>

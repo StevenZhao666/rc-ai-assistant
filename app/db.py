@@ -163,8 +163,7 @@ def log_qa(student_id: str, question: str, answer: str, top_score: float) -> Non
         with (config.DATA_DIR / "qa_log.jsonl").open("a", encoding="utf-8") as f:
             f.write(json.dumps({"ts": ts, "who": student_id, "q": question,
                                 "score": round(top_score, 2), "len": len(answer or "")},
-                               ensure_ascii=False) + "
-")
+                               ensure_ascii=False) + "\n")
     except Exception:
         pass
 

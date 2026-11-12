@@ -95,8 +95,25 @@ def reachable(url: str, timeout: float = 30) -> bool:
     return False
 
 
+def local_ready(timeout: float = 40) -> bool:
+    """先确认本机后端起来了；后端没起时判「隧道打不开」会全是误判。"""
+    deadline = time.time() + timeout
+    while time.time() < deadline:
+        try:
+            with urllib.request.urlopen("http://127.0.0.1:8001/health", timeout=5) as r:
+                if r.status == 200:
+                    return True
+        except Exception:
+            pass
+        time.sleep(2)
+    return False
+
+
 def main() -> int:
     tries = int(sys.argv[1]) if len(sys.argv) > 1 else 4
+    if not local_ready():
+        print("[x] 本机后端 127.0.0.1:8001 没起来，先查 data/server.log")
+        return 2
     for i in range(1, tries + 1):
         kill_cloudflared()
         marks = start()

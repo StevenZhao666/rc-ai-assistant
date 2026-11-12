@@ -26,34 +26,81 @@ app.include_router(review_router)
 
 _state: dict = {"retriever": None, "count": 0}
 
-# 每 IP 每小时配额：前 10 次走模型，接下来 20 次只做资料摘录（不花钱），再往后拒绝。
+# 配额：10 次走模型 + 20 次只摘原文。
+# 主键 = 学号 + 设备（两者取用得最多的那个）；IP 只作为高频滥用的兜底闸门，不参与 10 条额度。
+# 为什么 IP 不能当主键：校园 WiFi / 隧道后面几十个人可能共用一个出口 IP。
 ASK_LIMIT = int(os.environ.get("ASK_LIMIT_PER_HOUR", "10"))
 BASIC_LIMIT = int(os.environ.get("ASK_BASIC_LIMIT_PER_HOUR", "20"))
+IP_LIMIT = int(os.environ.get("ASK_IP_LIMIT_PER_HOUR", "60"))     # 单 IP 每小时总闸门
+SID_RE = re.compile(r"^[a-z]{2}\d{5,6}$")
 _buckets: dict[str, dict] = {}
 
 
-def _quota(key: str) -> tuple[int, int]:
-    """返回 (还能用模型的次数, 还能用基础模式的次数)，顺手清理一小时前的记录。"""
+def norm_sid(raw: str | None) -> str:
+    """uc00001 / UC593618 → 小写；格式不对或占位学号返回空串（当匿名）。"""
+    s = (raw or "").strip().lower()
+    if s in ("uc000000", "uc00000"):      # 默认占位，不能当成一个真实用户
+        return ""
+    return s if SID_RE.match(s) else ""
+
+
+def _client_ip(request: Request) -> str:
+    return (request.headers.get("cf-connecting-ip")
+            or (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
+            or (request.client.host if request.client else "?"))
+
+
+def _prune(key: str) -> dict:
     now = time.time()
     b = _buckets.setdefault(key, {"llm": deque(), "basic": deque()})
     for name in ("llm", "basic"):
         dq = b[name]
         while dq and now - dq[0] > 3600:
             dq.popleft()
-    return max(0, ASK_LIMIT - len(b["llm"])), max(0, BASIC_LIMIT - len(b["basic"]))
+    return b
 
 
-def _allow(key: str) -> str:
-    """llm / basic / none"""
-    llm_left, basic_left = _quota(key)
-    b = _buckets[key]
-    if llm_left > 0:
-        b["llm"].append(time.time())
+def _quota_keys(request: Request, user) -> tuple[list[str], str]:
+    """返回 (主键列表, ip)。没有学号也没有设备号时，退回按 IP 计。"""
+    ip = _client_ip(request)
+    keys = []
+    sid = norm_sid(getattr(user, "student_id", ""))
+    if sid:
+        keys.append("sid:" + sid)
+    dev = (request.headers.get("x-device-id") or "").strip()[:64]
+    if dev:
+        keys.append("dev:" + dev)
+    if not keys:
+        keys.append("ip:" + ip)
+    return keys, ip
+
+
+def _tier(keys: list[str], ip: str) -> str:
+    used_llm = max((len(_prune(k)["llm"]) for k in keys), default=0)
+    used_basic = max((len(_prune(k)["basic"]) for k in keys), default=0)
+    ip_bucket = _prune("ip:" + ip)
+    ip_total = len(ip_bucket["llm"]) + len(ip_bucket["basic"])
+    if ip_total >= IP_LIMIT:          # 同出口 IP 刷太狠，先停
+        return "none"
+    if used_llm < ASK_LIMIT:
         return "llm"
-    if basic_left > 0:
-        b["basic"].append(time.time())
+    if used_basic < BASIC_LIMIT:
         return "basic"
     return "none"
+
+
+def _record(keys: list[str], tier: str, ip: str) -> None:
+    now = time.time()
+    for k in keys:
+        _prune(k)[tier].append(now)
+    if "ip:" + ip not in keys:        # IP 桶只做总闸门计数
+        _prune("ip:" + ip)["llm" if tier == "llm" else "basic"].append(now)
+
+
+def _quota(keys: list[str]) -> tuple[int, int]:
+    llm_used = max((len(_prune(k)["llm"]) for k in keys), default=0)
+    basic_used = max((len(_prune(k)["basic"]) for k in keys), default=0)
+    return max(0, ASK_LIMIT - llm_used), max(0, BASIC_LIMIT - basic_used)
 
 
 def reload_kb() -> int:
@@ -75,6 +122,23 @@ def _startup() -> None:
 class AskIn(BaseModel):
     question: str
     top_k: int = 3
+
+
+class FeedbackIn(BaseModel):
+    question: str
+    answer: str = ""
+    vote: int                      # 1 有用 / -1 没用
+    note: str = ""
+    mode: str = ""
+
+
+@app.post("/api/feedback")
+def feedback(body: FeedbackIn, user: User = Depends(get_current_user)) -> dict:
+    if body.vote not in (1, -1):
+        raise HTTPException(400, "vote 只能是 1 或 -1")
+    db.add_feedback(user.student_id, body.question[:300], body.answer[:2000],
+                    body.vote, body.note[:500], body.mode)
+    return {"ok": True}
 
 
 @app.get("/health")
@@ -104,15 +168,12 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
     if len(q) > 300:
         q = q[:300]
 
-    # 公网走隧道时，所有请求的 client.host 都是 127.0.0.1——必须看真实来源 IP，
-    # 否则全世界的用户共用一个桶，第 11 个人就被降级了。
-    ip = (request.headers.get("cf-connecting-ip")
-          or (request.headers.get("x-forwarded-for") or "").split(",")[0].strip()
-          or (request.client.host if request.client else "?"))
-    tier = _allow(ip)
+    keys, ip = _quota_keys(request, user)
+    tier = _tier(keys, ip)
     if tier == "none":
         raise HTTPException(429, f"这个小时已经用完（{ASK_LIMIT} 次 AI 回答 + {BASIC_LIMIT} 次资料摘录）。"
                                  "过一会儿再来，或直接联系书院办公室 8822 9520。")
+    _record(keys, tier, ip)
     limit_notice = ""
     if tier == "basic":
         limit_notice = ("（本小时的 AI 回答次数已用完，下面改为直接从书院资料里摘录原文，"
@@ -131,7 +192,7 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
             "mode": result["mode"],
             "citations": cites,
             "user": user.student_id,
-            "quota": dict(zip(("llm_left", "basic_left"), _quota(ip))),
+            "quota": dict(zip(("llm_left", "basic_left"), _quota(keys))),
         }
 
     # 只展示模型真正用到的条目，避免「答案说 A、引用写 B」
@@ -158,7 +219,7 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
         "mode": result["mode"],
         "citations": cites,
         "user": user.student_id,
-        "quota": dict(zip(("llm_left", "basic_left"), _quota(ip))),
+        "quota": dict(zip(("llm_left", "basic_left"), _quota(keys))),
     }
 
 

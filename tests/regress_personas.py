@@ -33,7 +33,7 @@ CASES = [
 
 def ask(q):
     req = urllib.request.Request(BASE, data=json.dumps({"question": q}).encode(),
-                                 headers={"Content-Type": "application/json", "CF-Connecting-IP": _test_ip()})
+                                 headers={"Content-Type": "application/json", "CF-Connecting-IP": _test_ip(), "X-Device-Id": "test-" + str(uuid.uuid4())})
     with urllib.request.urlopen(req, timeout=90) as r:
         return json.loads(r.read())
 
