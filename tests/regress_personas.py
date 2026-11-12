@@ -23,7 +23,7 @@ CASES = [
     ("宿舍几点关门？晚归怎么办？", "", [], []),
     ("健身房几点开", "llm", ["7:00", "23:00"], []),
     ("书院最近有什么活动", "link_only", [], []),
-    ("What is the wifi network name and password?", "llm", [], []),
+    ("What is the wifi network name and password?", "fallback_gap", [], []),
     ("我发烧39度还咳嗽，应该吃什么药？", "policy_medical", ["999"], []),
     ("帮我写一篇论文", "policy_academic", ["学术"], []),
     ("蔡继有书院的住宿规定是什么？", "out_of_scope", ["rc.um.edu.mo"], []),

@@ -172,19 +172,10 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
 
     keys, ip = _quota_keys(request, user)
 
-    # 寒暄/客套不调模型，也不该吃掉额度
-    if answer_mod.is_smalltalk(q):
-        res = answer_mod.answer(q, [])
-        db.log_qa(user.student_id, q, res["text"], 0.0)
-        return {"answer": res["text"], "mode": res["mode"], "citations": [],
-                "user": user.student_id,
-                "quota": dict(zip(("llm_left", "basic_left"), _quota(keys)))}
-
     tier = _tier(keys, ip)
     if tier == "none":
         raise HTTPException(429, f"这个小时已经用完（{ASK_LIMIT} 次 AI 回答 + {BASIC_LIMIT} 次资料摘录）。"
                                  "过一会儿再来，或直接联系书院办公室 8822 9520。")
-    _record(keys, tier, ip)
     limit_notice = ""
     if tier == "basic":
         limit_notice = ("（本小时的 AI 回答次数已用完，下面改为直接从书院资料里摘录原文，"
@@ -192,6 +183,9 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
 
     hits = _state["retriever"].search(q, k=body.top_k)
     result = answer_mod.answer(q, hits, allow_llm=(tier == "llm"))
+    # 闲聊（chat）不占额度；其余正常记账
+    if result.get("mode") != "chat":
+        _record(keys, tier, ip)
     result["text"] = limit_notice + result["text"]
     db.log_qa(user.student_id, q, result["text"], hits[0]["score"] if hits else 0.0)
 

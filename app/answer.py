@@ -246,6 +246,62 @@ def is_smalltalk(q: str) -> bool:
     return False
 
 
+def _llm_raw(messages: list[dict], max_tokens: int = 120, temp: float = 0.3) -> str | None:
+    """底层调用：给一组 messages，返回纯文本；失败返回 None。"""
+    if not (config.LLM_BASE and config.LLM_KEY):
+        return None
+    payload = {"model": config.LLM_MODEL, "messages": messages,
+               "temperature": temp, "max_tokens": max_tokens}
+    req = urllib.request.Request(
+        config.LLM_BASE + "/chat/completions",
+        data=json.dumps(payload).encode(),
+        headers={"Content-Type": "application/json", "Authorization": f"Bearer {config.LLM_KEY}"},
+    )
+    try:
+        with urllib.request.urlopen(req, timeout=30) as r:
+            data = json.loads(r.read())
+        _log_usage(config.LLM_MODEL + ":gate", data.get("usage") or {})
+        return (data["choices"][0]["message"]["content"] or "").strip()
+    except Exception as e:  # noqa: BLE001
+        print(f"[warn] 轻量调用失败：{e}")
+        return None
+
+
+GATE_SYS = """你是一个意图分类器。判断用户这句话是否需要查阅「书院资料库」才能回答。
+需要查资料（输出 1）：问书院/学校的具体信息，例如规章、住宿、设施、开放时间、费用、表格、办事流程、活动、联系方式。
+不需要查资料（输出 0）：问候、寒暄、感谢、告别、问你是谁/你能做什么、表达情绪、闲聊、与书院无关的问题（天气、新闻、作业题）。
+只输出一个字符：1 或 0。"""
+
+
+def needs_kb(question: str) -> bool | None:
+    """让模型判一次：需不需要查资料。没模型可用时返回 None（调用方退回关键词）。"""
+    out = _llm_raw([{"role": "system", "content": GATE_SYS},
+                    {"role": "user", "content": question}], max_tokens=4, temp=0)
+    if out is None:
+        return None
+    return out.strip().startswith("1")
+
+
+def chat_reply(question: str, lang: str) -> str:
+    """闲聊直接由模型生成一句自然的回应，不查资料、不列能力清单。"""
+    sys = (
+        "你是昆昆，澳门大学张昆仑书院的吉祥物兼助手。"
+        "现在对方在寒暄或闲聊，直接自然回应一句到两句，语气像熟悉的学长；"
+        "不要提「资料库」，不要罗列能力清单，不要每句都让人去问办公室。"
+        "如果对方问你是谁，就说自己是昆昆、书院的吉祥物。"
+        "硬规矩：不编造任何事实（天气、价格、时间、新闻、成绩都不许猜）；"
+        "做不到的事不要答应（看代码、写作业、预测成绩、查个人记录）；"
+        "被问到这类就说自己查不了或帮不上，最多给一个方向。"
+        "语言跟提问严格一致：简体提问必须用简体汉字回答，不要夹粤语字（唔/嘅/咗/喺）；"
+        "粤语口语提问才用繁体口语；英文提问用英文。"
+    )
+    out = _llm_raw([{"role": "system", "content": sys},
+                    {"role": "user", "content": question}], max_tokens=180, temp=0.6)
+    if out:
+        return out
+    return i18n.smalltalk(lang)
+
+
 def _intro_from_kb(lang: str) -> dict | None:
     """书院介绍：从已发布的「书院基础档案」条目拼，带真实引用，不另写一套事实。"""
     from . import db
@@ -289,19 +345,7 @@ def _intro_from_kb(lang: str) -> dict | None:
 def answer(question: str, hits: list[dict], allow_llm: bool = True) -> dict:
     lang = i18n.detect_lang(question)
 
-    # 零、寒暄：你好 / 谢谢 / 在吗 —— 像人一样回一句，别查资料
-    if is_smalltalk(question):
-        s0 = re.sub(r"[\s！!。.，,？?~～]+", "", question).lower()
-        text = i18n.thanks_reply(lang) if s0 in ("谢谢", "謝謝", "thanks", "thankyou", "唔该", "唔該") else i18n.smalltalk(lang)
-        return {"mode": "chat", "text": text, "used": []}
-
-    # 零、问「你是谁」和「书院介绍」：不该检索，也不该说不知道
-    if any(h in question.lower() for h in META_HINTS):
-        return {"mode": "meta", "text": i18n.meta_identity(lang), "used": []}
-    if any(h in question.lower() for h in INTRO_HINTS):
-        return _intro_from_kb(lang) or {"mode": "intro", "text": i18n.college_intro(lang), "used": []}
-
-    # 一、越界问题（急救、医疗、代写、情绪、人身安全）：不检索，直接给专用话术
+    # 一、越界问题（必须最先判：代写/医疗/情绪/安全不能被当成闲聊）（急救、医疗、代写、情绪、人身安全）：不检索，直接给专用话术
     for triggers, kind in SAFETY_RULES:
         if any(t in question.lower() if t.isascii() else t in question for t in triggers):
             # 火警演习、急救箱位置这类不是真紧急，不该触发"立刻拨 999"
@@ -318,6 +362,40 @@ def answer(question: str, hits: list[dict], allow_llm: bool = True) -> dict:
             "text": i18n.out_of_scope(lang),
             "used": [],
         }
+
+
+    # 零、寒暄：你好 / 谢谢 / 在吗 —— 像人一样回一句，别查资料
+    # 实时信息（天气等）和确知没有的资料，先挡掉，绝不让模型自由发挥
+    ql = question.lower()
+    for k, channel in LIVE_MAP.items():
+        if k in ql:
+            return {"mode": "fallback_live", "used": [],
+                    "text": i18n.fallback_live(lang, channel)}
+    for k, topic in GAP_MAP.items():
+        if k in ql and k not in ("续住", "截止日期"):
+            return {"mode": "fallback_gap", "used": [],
+                    "text": i18n.fallback_gap(lang, topic)}
+
+    strong_hit = bool(hits) and hits[0].get("score", 0) >= config.MIN_SCORE
+    if strong_hit:
+        need = True                      # 资料库里明明有，就别判成闲聊
+    elif allow_llm:
+        need = needs_kb(question)
+    else:
+        need = None
+
+    if need is False:
+        return {"mode": "chat", "text": chat_reply(question, lang), "used": []}
+    if need is None and is_smalltalk(question):
+        s0 = re.sub(r"[\s！!。.，,？?~～]+", "", question).lower()
+        text = i18n.thanks_reply(lang) if s0 in ("谢谢", "謝謝", "thanks", "thankyou", "唔该", "唔該") else i18n.smalltalk(lang)
+        return {"mode": "chat", "text": text, "used": []}
+
+    # 零、问「你是谁」和「书院介绍」：不该检索，也不该说不知道
+    if any(h in question.lower() for h in META_HINTS):
+        return {"mode": "meta", "text": i18n.meta_identity(lang), "used": []}
+    if any(h in question.lower() for h in INTRO_HINTS):
+        return _intro_from_kb(lang) or {"mode": "intro", "text": i18n.college_intro(lang), "used": []}
 
     if not hits or hits[0]["score"] < config.MIN_SCORE:
         return _fallback(question, lang)
