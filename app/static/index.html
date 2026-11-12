@@ -375,7 +375,6 @@ function addFeedback(bubble, q, ans, mode) {
 /* ── 提问 ─────────────────────────────────────── */
 async function ask(text) {
   if (!text.trim()) return;
-  if (!S.sid) openSidModal();
   addMsg('user', text);
   qEl.value = '';
   sendBtn.disabled = true;

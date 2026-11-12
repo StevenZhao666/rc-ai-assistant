@@ -70,6 +70,23 @@ def meta_identity(lang: str) -> str:
     return "我是昆昆，张昆仑书院的吉祥物。房务、设施、院规、办事流程都可以问我，你想查哪件？"
 
 
+def smalltalk(lang: str) -> str:
+    """寒暄不该回「没找到条目」。"""
+    if lang == "en":
+        return "Hi! I am Kunkun. What would you like to know about the college — rooms, facilities, rules or procedures?"
+    if lang == "zh-Hant":
+        return "你好！我是昆昆。想問書院哪方面的事？住宿、設施、規章、辦事流程都可以。"
+    return "你好！我是昆昆。想问书院哪方面的事？住宿、设施、规章、办事流程都可以。"
+
+
+def thanks_reply(lang: str) -> str:
+    if lang == "en":
+        return "You are welcome. Ask me anytime."
+    if lang == "zh-Hant":
+        return "唔使客氣，有咩想問隨時搵我。"
+    return "不客气，有问题随时问我。"
+
+
 def fallback_live(lang: str, channel: str) -> str:
     """实时/校外信息：给对的口子，不要甩书院办公室。"""
     if lang == "en":
@@ -90,13 +107,13 @@ def fallback_gap(lang: str, topic: str) -> str:
 
 
 def fallback_low(lang: str) -> str:
-    """检索没命中，但问题在范围内：请对方说具体点，不责怪、不甩电话。"""
+    """检索没命中：像人一样说没找到，给一个具体的说话方向，不用「没有匹配条目」这种词。"""
     if lang == "en":
-        return ("I did not find a matching entry. Can you be more specific: "
-                "is it about your room, a facility, or a procedure?")
+        return ("I could not find anything on that one. Can you put it another way — "
+                "or tell me whether it is about your room, a facility, or a procedure?")
     if lang == "zh-Hant":
-        return "搵唔到對應嘅條目。你可唔可以講具體啲：係問房間、設施，定係辦事流程？"
-    return "没找到对应条目。你能说具体点吗：是问房间、设施，还是办事流程？"
+        return "這條我查不到。你換個說法，或者直接講是關於住宿、設施，還是辦事流程？"
+    return "这条我查不到。你换个说法，或者直接讲是关于住宿、设施，还是办事流程？"
 
 
 def college_intro(lang: str) -> str:

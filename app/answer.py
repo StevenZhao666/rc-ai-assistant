@@ -227,6 +227,25 @@ def _log_usage(model: str, usage: dict) -> None:
         pass
 
 
+# 寒暄/客套：不该检索，也不该回「查不到」
+GREET_WORDS = {
+    "你好", "您好", "哈啰", "哈囉", "嗨", "hi", "hello", "hey", "在吗", "在嗎",
+    "早安", "早晨", "早", "晚安", "谢谢", "謝謝", "thanks", "thankyou", "thankyou",
+    "再见", "再見", "bye", "好的", "ok", "okay", "你好呀", "你好啊", "hiya",
+}
+
+
+def is_smalltalk(q: str) -> bool:
+    s = re.sub(r"[\s！!。.，,？?~～]+", "", (q or "")).lower()
+    s = s.rstrip("啊呀哦喔啦吧呢")
+    if s in GREET_WORDS:
+        return True
+    # 「你好啊/你好吗/hello there」这类短寒暄也算
+    if len(s) <= 6 and any(s.startswith(g) for g in ("你好", "您好", "哈囉", "哈罗", "嗨", "hello", "hi")):
+        return True
+    return False
+
+
 def _intro_from_kb(lang: str) -> dict | None:
     """书院介绍：从已发布的「书院基础档案」条目拼，带真实引用，不另写一套事实。"""
     from . import db
@@ -269,6 +288,12 @@ def _intro_from_kb(lang: str) -> dict | None:
 
 def answer(question: str, hits: list[dict], allow_llm: bool = True) -> dict:
     lang = i18n.detect_lang(question)
+
+    # 零、寒暄：你好 / 谢谢 / 在吗 —— 像人一样回一句，别查资料
+    if is_smalltalk(question):
+        s0 = re.sub(r"[\s！!。.，,？?~～]+", "", question).lower()
+        text = i18n.thanks_reply(lang) if s0 in ("谢谢", "謝謝", "thanks", "thankyou", "唔该", "唔該") else i18n.smalltalk(lang)
+        return {"mode": "chat", "text": text, "used": []}
 
     # 零、问「你是谁」和「书院介绍」：不该检索，也不该说不知道
     if any(h in question.lower() for h in META_HINTS):

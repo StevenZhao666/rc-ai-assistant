@@ -9,7 +9,7 @@ import urllib.error
 import urllib.request
 
 BASE = "http://127.0.0.1:8001"
-A, B = "uc12345", "uc600001"
+A, B = "uc99999", "uc99998"
 Q = "【测试】审批流程验证条目"
 rows = []
 

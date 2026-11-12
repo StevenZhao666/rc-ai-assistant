@@ -171,6 +171,15 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
         q = q[:300]
 
     keys, ip = _quota_keys(request, user)
+
+    # 寒暄/客套不调模型，也不该吃掉额度
+    if answer_mod.is_smalltalk(q):
+        res = answer_mod.answer(q, [])
+        db.log_qa(user.student_id, q, res["text"], 0.0)
+        return {"answer": res["text"], "mode": res["mode"], "citations": [],
+                "user": user.student_id,
+                "quota": dict(zip(("llm_left", "basic_left"), _quota(keys)))}
+
     tier = _tier(keys, ip)
     if tier == "none":
         raise HTTPException(429, f"这个小时已经用完（{ASK_LIMIT} 次 AI 回答 + {BASIC_LIMIT} 次资料摘录）。"
