@@ -64,6 +64,7 @@
   /* 学号弹窗 */
   .mask{position:fixed;inset:0;background:rgba(36,26,25,.45);display:grid;place-items:center;
         z-index:20;padding:20px}
+  .mask[hidden]{display:none}   /* 关键：没有这条，hidden 属性会被 .mask 的 display:grid 盖掉 */
   .sheet{background:#fff;border-radius:14px;padding:22px;width:100%;max-width:380px;
          box-shadow:0 18px 50px rgba(0,0,0,.18)}
   .sheet h2{margin:0 0 6px;font-size:17px;color:var(--red)}
@@ -107,7 +108,7 @@
   <div class="sheet">
     <h2 id="mTitle"></h2>
     <p id="mHint"></p>
-    <input id="sidInput" type="text" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <input id="sidInput" type="text" maxlength="7" autocomplete="off" autocapitalize="off" spellcheck="false">
     <div class="err" id="sidErr" hidden></div>
     <div class="row">
       <button class="primary" id="sidOk"></button>
@@ -136,7 +137,7 @@ const T = {
     idTitle: "填一下學號",
     idHint: "學號只用於統計「誰問了什麼」和限制每人每小時的額度，不會公開，也不需要密碼。",
     idOk: "確定", idSkip: "稍後再說",
-    idErr: "學號格式：2 個字母 + 5 或 6 位數字，例如 uc00001 或 UC593618",
+    idErr: "學號填 7 位：2 個字母 + 5 位數字，例如 uc12345",
     askFirst: "先點右上角填學號",
     searching: "檢索中…",
     tooMany: "這個小時問得太多了，過一會兒再來。",
@@ -161,7 +162,7 @@ const T = {
     idTitle: "填一下学号",
     idHint: "学号只用于统计「谁问了什么」和限制每人每小时的额度，不会公开，也不需要密码。",
     idOk: "确定", idSkip: "稍后再说",
-    idErr: "学号格式：2 个字母 + 5 或 6 位数字，例如 uc00001 或 UC593618",
+    idErr: "学号填 7 位：2 个字母 + 5 位数字，例如 uc12345",
     askFirst: "先点右上角填学号",
     searching: "检索中…",
     tooMany: "这个小时问得太多了，过一会儿再来。",
@@ -186,7 +187,7 @@ const T = {
     idTitle: "Your student ID",
     idHint: "Used only to count questions and apply the hourly quota. Not published, no password involved.",
     idOk: "OK", idSkip: "Later",
-    idErr: "Format: 2 letters + 5 or 6 digits, e.g. uc00001 or UC593618",
+    idErr: "7 characters: 2 letters + 5 digits, e.g. uc12345",
     askFirst: "Enter your student ID first",
     searching: "Searching…",
     tooMany: "Too many questions this hour. Try again later.",
@@ -279,7 +280,7 @@ function closeSidModal() { mask.hidden = true; }
 
 $('#sidOk').onclick = () => {
   const v = $('#sidInput').value.trim();
-  if (!/^[A-Za-z]{2}\d{5,6}$/.test(v)) {
+  if (!/^[A-Za-z]{2}\d{5}$/.test(v)) {
     $('#sidErr').textContent = t('idErr');
     $('#sidErr').hidden = false;
     return;

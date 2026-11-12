@@ -34,12 +34,12 @@ _state: dict = {"retriever": None, "count": 0}
 ASK_LIMIT = int(os.environ.get("ASK_LIMIT_PER_HOUR", "10"))
 BASIC_LIMIT = int(os.environ.get("ASK_BASIC_LIMIT_PER_HOUR", "20"))
 IP_LIMIT = int(os.environ.get("ASK_IP_LIMIT_PER_HOUR", "60"))     # 单 IP 每小时总闸门
-SID_RE = re.compile(r"^[a-z]{2}\d{5,6}$")
+SID_RE = re.compile(r"^[a-z]{2}\d{5}$")
 _buckets: dict[str, dict] = {}
 
 
 def norm_sid(raw: str | None) -> str:
-    """uc00001 / UC593618 → 小写；格式不对或占位学号返回空串（当匿名）。"""
+    """学号统一小写；格式不对或占位学号返回空串（当匿名）。"""
     s = (raw or "").strip().lower()
     if s in ("uc000000", "uc00000"):      # 默认占位，不能当成一个真实用户
         return ""
