@@ -3,30 +3,30 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CKLC 书院 AI 助手</title>
+<title>昆昆 · 张昆仑书院助手</title>
 <style>
   :root{
-    --bg:#0f1115; --panel:#161a21; --line:#252b36; --fg:#e8eaed; --dim:#9aa3b2;
-    --accent:#4b8dfd; --warn:#f0b429; --ok:#38b48b;
+    --bg:#f7f2f1; --panel:#ffffff; --line:#e6d8d6; --fg:#241a19; --dim:#7a6866;
+    --accent:#88070f; --accent-soft:#f3dedd; --warn:#9a6700; --ok:#2f6b4f;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--fg);
        font:15px/1.7 -apple-system,"Segoe UI","Microsoft YaHei",sans-serif;}
-  header{position:sticky;top:0;z-index:5;background:rgba(15,17,21,.92);
+  header{position:sticky;top:0;z-index:5;background:#88070f;
          backdrop-filter:blur(8px);border-bottom:1px solid var(--line);
          padding:12px 20px;display:flex;align-items:center;gap:12px;flex-wrap:wrap;}
   header h1{font-size:16px;margin:0;font-weight:600}
-  .pill{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid var(--line);color:var(--dim)}
-  .pill.ok{color:var(--ok);border-color:rgba(56,180,139,.4)}
+  .pill{font-size:12px;padding:2px 8px;border-radius:999px;border:1px solid rgba(255,255,255,.28);color:rgba(255,255,255,.86)}
+  .pill.ok{color:#fff;border-color:rgba(255,255,255,.65);background:rgba(255,255,255,.14)}
   .pill.btn{cursor:pointer}
-  .pill.btn:hover{border-color:var(--accent);color:var(--fg)}
+  .pill.btn:hover{border-color:#fff;color:#fff}
   main{max-width:840px;margin:0 auto;padding:24px 20px 140px}
   .msg{margin:18px 0;display:flex;gap:10px}
   .msg .who{flex:0 0 34px;height:34px;border-radius:10px;display:grid;place-items:center;
             font-size:12px;font-weight:600;background:var(--panel);border:1px solid var(--line)}
   .bubble{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:12px;
           padding:12px 16px;white-space:pre-wrap;word-break:break-word}
-  .msg.user .bubble{background:#1b2536;border-color:#26364f}
+  .msg.user .bubble{background:#f6e7e6;border-color:#e3c9c7}
   .cite{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px;font-size:13px;color:var(--dim)}
   .cite b{color:var(--fg);font-weight:600}
   .tag{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:6px;margin:4px 6px 0 0;
@@ -36,9 +36,9 @@
   .fb button{background:transparent;border:1px solid var(--line);color:var(--dim);
              font-size:12.5px;padding:3px 10px;border-radius:8px;cursor:pointer;font-weight:500}
   .fb button:hover{border-color:var(--accent);color:var(--fg)}
-  .fb button.on{background:rgba(75,141,253,.16);border-color:var(--accent);color:var(--fg)}
+  .fb button.on{background:var(--accent-soft);border-color:var(--accent);color:var(--accent)}
   .fb .done{font-size:12px;color:var(--ok)}
-  footer{position:fixed;bottom:0;left:0;right:0;background:rgba(15,17,21,.96);
+  footer{position:fixed;bottom:0;left:0;right:0;background:rgba(255,255,255,.97);
          border-top:1px solid var(--line);padding:14px 20px}
   .box{max-width:840px;margin:0 auto;display:flex;gap:10px}
   input[type=text]{flex:1;background:var(--panel);border:1px solid var(--line);color:var(--fg);
@@ -55,22 +55,23 @@
 </head>
 <body>
 <header>
-  <h1>张昆仑书院 · AI 助手</h1>
+  <h1>昆昆 · 张昆仑书院助手</h1>
   <span class="pill btn" id="who" title="点这里填学号">未填学号</span>
   <span class="pill" id="mode">模式…</span>
   <span class="pill">本地演示版 · 数据未审核</span>
   <span class="pill">AI 生成 · 仅供参考</span>
 </header>
 
-<div style="margin:10px 18px 0;padding:8px 12px;border:1px solid #e3c98a;background:#fff8e6;
-            color:#6b5200;border-radius:8px;font-size:12.5px;line-height:1.6">
+<div style="margin:10px 18px 0;padding:8px 12px;border:1px solid #e4c9c7;background:#fff7f6;
+            color:#6b2b2b;border-radius:8px;font-size:12.5px;line-height:1.6">
   回答由 AI 根据书院资料自动生成，<b>仅供参考，不代表书院或学校的正式意见</b>，也不能作为决定依据。
   涉及规定、费用、期限，请以官方最新公告和书院办公室答复为准；紧急情况请拨 <b>999</b>。
 </div>
 
 <main id="log">
   <div class="msg"><div class="who">AI</div><div class="bubble">
-你好，我是书院问答助手（本地演示版）。我只根据书院资料回答，答完会告诉你依据哪一条。
+你好，我是昆昆，张昆仑书院的吉祥物。书院的事都可以问我——规章、设施、房务、办事流程。
+我只根据书院资料回答，答完会告诉你依据哪一条。
 资料里没有的，我会直说没有，并给你办公室联系方式。
 
 注意：我的回答是 AI 自动生成的，仅供参考；遇到规定、费用、期限这类事，请以官方公告为准。
@@ -143,7 +144,7 @@ function headers() {
 function addMsg(role, text) {
   const el = document.createElement('div');
   el.className = 'msg ' + role;
-  el.innerHTML = `<div class="who">${role === 'user' ? '我' : 'AI'}</div><div class="bubble"></div>`;
+  el.innerHTML = `<div class="who">${role === 'user' ? '我' : '昆'}</div><div class="bubble"></div>`;
   el.querySelector('.bubble').textContent = text;
   log.appendChild(el);
   window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});

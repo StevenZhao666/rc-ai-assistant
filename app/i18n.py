@@ -64,10 +64,10 @@ def fallback(lang: str) -> str:
 def meta_identity(lang: str) -> str:
     """身份题：一句范围 + 一个追问。不列能力清单、不列禁区清单（那才是客服味）。"""
     if lang == "en":
-        return "I help CKLC residents look things up: rooms, facilities, hall rules, forms. What do you need?"
+        return "I am Kunkun, the mascot of Cheong Kun Lun College. Ask me about rooms, facilities, hall rules or forms. What do you need?"
     if lang == "zh-Hant":
-        return "我主要幫院生查 CKLC 嘅資料：房務、設施、院規、辦事流程都可以問。你想查邊樣？"
-    return "我主要帮院生查 CKLC 的资料：房务、设施、院规、办事流程都能问。你想查哪件？"
+        return "我係昆昆，張崑崙書院嘅吉祥物。房務、設施、院規、辦事流程都可以問我，你想查邊樣？"
+    return "我是昆昆，张昆仑书院的吉祥物。房务、设施、院规、办事流程都可以问我，你想查哪件？"
 
 
 def fallback_live(lang: str, channel: str) -> str:
