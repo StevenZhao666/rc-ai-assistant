@@ -22,3 +22,4 @@ data/server.out
 data/server.err
 data/demo/
 *.xlsx
+docs/_internal/
