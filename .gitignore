@@ -11,3 +11,5 @@ data/tunnel.out
 data/tunnel.log
 data/server-*.log
 backups/
+tools/*.exe
+data/tunnel*
