@@ -13,3 +13,12 @@ data/server-*.log
 backups/
 tools/*.exe
 data/tunnel*
+# 真实题库与运行产物：公开仓库里不带这些
+data/overrides.py
+data/source_map.py
+data/ingest_report.json
+data/kimi_review.md
+data/server.out
+data/server.err
+data/demo/
+*.xlsx

@@ -3,7 +3,7 @@ from pathlib import Path
 import os
 
 ROOT = Path(__file__).resolve().parent.parent
-DATA_DIR = ROOT / "data"
+DATA_DIR = Path(os.environ.get("DATA_DIR") or (ROOT / "data"))
 DB_PATH = DATA_DIR / "kb.sqlite3"
 STATIC_DIR = ROOT / "app" / "static"
 
@@ -23,11 +23,11 @@ def _load_dotenv() -> None:
 
 _load_dotenv()
 
-# 每个书院只改这几行
-COLLEGE_NAME = "张昆仑书院（CKLC）"
-OFFICE_ROOM = "G 层 G003"
-OFFICE_PHONE = "(+853) 8822 9520"
-OFFICE_EMAIL = "cklcollege@um.edu.mo"
+# 每个书院只改这几行（也可以用环境变量覆盖，见 .env.example）
+COLLEGE_NAME = os.environ.get("COLLEGE_NAME", "张昆仑书院（CKLC）")
+OFFICE_ROOM = os.environ.get("OFFICE_ROOM", "G 层 G003")
+OFFICE_PHONE = os.environ.get("OFFICE_PHONE", "(+853) 8822 9520")
+OFFICE_EMAIL = os.environ.get("OFFICE_EMAIL", "cklcollege@um.edu.mo")
 OFFICE_HOURS = "周一至周四 09:30-13:00 / 14:30-17:45，周五 09:30-13:00 / 14:30-17:30（法定节假日除外）"
 
 # 模型：留空则用「抽取式」模式，不调模型也能跑

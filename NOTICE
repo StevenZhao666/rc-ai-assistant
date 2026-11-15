@@ -1,0 +1,37 @@
+昆昆 · 书院问答助手（框架）
+Copyright (C) 2026 赵瀚阳 and contributors
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <https://www.gnu.org/licenses/>.
+
+---------------------------------------------------------------------------
+NOTICE — 不在 GPL 范围内的内容
+
+1. 名称与标识
+   「张昆仑书院」「CKLC」「Choi Kai Yau College」名称、院徽、吉祥物形象及其衍生图形，
+   权利归澳门大学张昆仑书院所有，不随本仓库的 GPL-3.0 许可授权。仓库中的
+   app/static/img/kunkun.jpg 仅为占位示例，使用者应替换为自己的素材。
+
+2. 资料与问答内容
+   书院规章、通知、活动信息及其他院务资料，以及基于这些资料整理的问答条目，
+   版权归原权利人（书院/澳门大学）所有。本仓库不包含真实题库；使用者自行导入的
+   资料，其权利与合规责任由导入者承担。
+
+3. 个人信息
+   仓库不含任何学生或教职员的个人信息。若部署时收集提问流水，须遵守当地法律
+   及所属机构的隐私政策（澳门适用第 8/2005 号法律《个人资料保护法》）。
+
+4. 无担保与责任
+   本项目为技术框架，不构成法律、医疗、心理或学术意见。部署方对上线内容、
+   审核流程与对外表述负责。
+---------------------------------------------------------------------------

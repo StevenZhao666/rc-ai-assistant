@@ -9,7 +9,7 @@ from pathlib import Path
 
 import paramiko
 
-HOST = "<SERVER_IP>"
+HOST = os.environ.get("PROBE_HOST", "127.0.0.1")
 USER = "root"
 PUB = (Path.home() / ".ssh" / "rc_ai_deploy.pub").read_text(encoding="utf-8").strip()
 

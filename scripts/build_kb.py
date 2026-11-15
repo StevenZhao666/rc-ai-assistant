@@ -28,8 +28,16 @@ sys.path.insert(0, str(ROOT / "data"))
 
 from app import db  # noqa: E402
 from app.profile import PROFILE_ENTRIES  # noqa: E402
-from overrides import ARCHIVE, OVERRIDES  # noqa: E402
-from source_map import pick as pick_source  # noqa: E402
+try:  # 修正层是可选的：公开框架不带真实题库的规则文件
+    from overrides import ARCHIVE, OVERRIDES  # noqa: E402
+except ImportError:
+    ARCHIVE, OVERRIDES = [], []
+
+try:
+    from source_map import pick as pick_source  # noqa: E402
+except ImportError:
+    def pick_source(question: str):  # 没有来源表时一律标 unverified
+        return {"url": "", "title": "未指派来源", "type": "unverified"}
 
 BAD_YEARS = re.compile(r"20(1\d|2[0-4])")
 VAGUE = ("通常", "一般", "原则上", "原則上")
