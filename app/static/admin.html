@@ -39,6 +39,12 @@
   .tag.chat{background:#eef7ee;color:var(--ok)}
   .tag.policy{background:#fde8e8;color:var(--red)}
   .muted{color:var(--muted)}
+  .chartX{position:relative;height:16px;margin-top:-4px}
+  .chartX span{position:absolute;transform:translateX(-50%);font-size:11px;color:#8a837d;white-space:nowrap}
+  .range{display:flex;gap:6px;margin-bottom:6px}
+  .range button{border:1px solid var(--line);background:#fff;color:var(--muted);border-radius:999px;
+                padding:4px 10px;font-size:12px;cursor:pointer}
+  .range button.on{background:var(--red);border-color:var(--red);color:#fff}
   .bars{display:flex;align-items:flex-end;gap:6px;height:90px;margin-top:6px}
   .bars .b{flex:1;background:var(--red);opacity:.75;border-radius:3px 3px 0 0;min-height:2px}
   .bars .b span{display:block;font-size:10px;color:var(--muted);text-align:center;margin-top:3px}
@@ -75,7 +81,7 @@
 
 <script>
 const $ = s => document.querySelector(s);
-const S = { who: localStorage.getItem('cklc_admin') || '', tab: 'overview', cache: {} };
+const S = { who: localStorage.getItem('cklc_admin') || '', tab: 'overview', days: 7, cache: {} };
 
 $('#who').value = S.who;
 $('#who').addEventListener('change', () => {
@@ -117,6 +123,35 @@ async function api(path){
 function kpi(n, l){ return `<div class="kpi"><div class="n">${n}</div><div class="l">${l}</div></div>`; }
 function panel(title, body){ return `<div class="panel"><h2>${title}</h2>${body}</div>`; }
 
+
+// 7/14/30/90 天都能看；点太密时自动抽稀标签
+function lineChart(days){
+  const n = days.length;
+  const W = 760, H = 175, PL = 34, PR = 12, PT = 34, PB = 20;
+  const iw = W - PL - PR, ih = H - PT - PB;
+  const max = Math.max(1, ...days.map(d => d.questions));
+  const x = i => n === 1 ? PL + iw / 2 : PL + (i * iw) / (n - 1);
+  const y = v => PT + ih - (v / max) * ih;
+  const pts = days.map((d, i) => `${x(i).toFixed(1)},${y(d.questions).toFixed(1)}`).join(' ');
+  const step = n <= 14 ? 1 : Math.ceil(n / 10);
+  const dots = days.map((d, i) => {
+    const cx = x(i), cy = y(d.questions);
+    const show = i % step === 0 || i === n - 1;
+    return `<circle cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" r="${d.questions ? 3.2 : 2}" fill="${d.questions ? 'var(--red)' : '#c9c2bc'}"></circle>`
+      + (show ? `<text x="${cx.toFixed(1)}" y="${(cy < 30 ? cy + 17 : cy - 8).toFixed(1)}" text-anchor="middle" font-size="11" font-weight="600" fill="#6b6560">${d.questions}</text>` : '')
+;
+  }).join('');
+  const grid = [0, 0.5, 1].map(f => {
+    const yy = PT + ih - f * ih;
+    return `<line x1="${PL}" y1="${yy}" x2="${W - PR}" y2="${yy}" stroke="#eee7e2" stroke-width="1"></line>`
+      + `<text x="${PL - 6}" y="${yy + 3}" text-anchor="end" font-size="9" fill="#a8a19b">${Math.round(max * f)}</text>`;
+  }).join('');
+  return `<svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:175px">
+    ${grid}<polyline points="${pts}" fill="none" stroke="var(--red)" stroke-width="2" stroke-linejoin="round"></polyline>${dots}</svg>`
+    + `<div class="chartX">${days.map((d, i) => (i % step === 0 || i === n - 1)
+        ? `<span style="left:${(x(i) / W * 100).toFixed(2)}%">${d.date.slice(5)}</span>` : '').join('')}</div>`;
+}
+
 function renderOverview(d){
   const max = Math.max(1, ...d.days.map(x => x.questions));
   const bars = d.days.map(x => `<div class="b" style="height:${Math.max(2, x.questions / max * 70)}px" title="${x.date}: ${x.questions} 问">
@@ -133,7 +168,9 @@ function renderOverview(d){
     ${kpi(num(d.feedback.up) + ' / ' + num(d.feedback.down), '👍 / 👎')}
     ${kpi(d.latency.p50 + ' ms', '响应中位数（p95 ' + d.latency.p95 + ' ms）')}
   </div>
-  ${panel('最近 ' + d.days.length + ' 天提问量', `<div class="bars">${bars}</div>`)}
+  ${panel('最近 ' + d.days.length + ' 天提问量',
+    `<div class="range">${[7,14,30,90].map(n=>`<button data-days="${n}" class="${S.days===n?'on':''}">${n} 天</button>`).join('')}</div>
+     ${lineChart(d.days)}`)}
   <div class="row">
     ${panel('回答模式', `<table><tr><th>模式</th><th class="num">次数</th></tr>
       ${Object.entries(d.modes).map(([m,n])=>`<tr><td>${tag(m==='unknown'?'':m)}</td><td class="num">${num(n)}</td></tr>`).join('')}
@@ -282,7 +319,7 @@ function renderSystem(d){
 }
 
 const VIEWS = {
-  overview: ['/overview?days=7', renderOverview],
+  overview: [() => '/overview?days=' + S.days, renderOverview],
   questions: ['/questions?days=7&limit=100', renderQuestions],
   gaps: ['/gaps?days=30', renderGaps],
   feedback: ['/feedback?limit=100', renderFeedback],
@@ -293,11 +330,15 @@ const VIEWS = {
 };
 
 async function load(force){
-  const [path, draw] = VIEWS[S.tab];
+  const [pathOrFn, draw] = VIEWS[S.tab];
+  const path = typeof pathOrFn === 'function' ? pathOrFn() : pathOrFn;
   $('#main').innerHTML = '<div class="panel muted">读取中…</div>';
   try {
     const d = await api(path);
     $('#main').innerHTML = draw(d);
+    document.querySelectorAll('#main .range button').forEach(b => b.onclick = () => {
+      S.days = +b.dataset.days; load();
+    });
   } catch (e) {
     $('#main').innerHTML = `<div class="panel err"><b>读不到数据</b><br>${esc(e.message)}</div>`;
   }

@@ -57,9 +57,13 @@
   .warnbox{background:#fff8e6;border:1px solid #f0dfae;color:#6b5200;padding:6px 9px;border-radius:6px;
            font-size:12px;margin-bottom:8px}
   .hist{border-top:1px dashed var(--line);margin-top:12px;padding-top:8px;font-size:12px;color:var(--muted)}
-  details.orig{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0 12px;background:#fbf9f7}
-  details.orig summary{cursor:pointer;font-weight:600;font-size:13px;color:var(--red)}
-  details.orig[open] summary{margin-bottom:8px}
+  .compare{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin:6px 0 12px}
+  .compare .side{min-width:0}
+  .compare label{display:block;font-size:12px;color:var(--muted);margin-bottom:4px}
+  .compare .tall{min-height:190px}
+  @media(max-width:820px){.compare{grid-template-columns:1fr}}
+  .srclink{display:inline-block;margin-top:6px;font-size:12px;color:var(--red)}
+  .origtext.small{max-height:120px;font-size:12px}
   .origtext{white-space:pre-wrap;background:#fff;border:1px solid #eee;border-radius:6px;padding:8px 10px;max-height:220px;overflow:auto;font-size:13px;line-height:1.6}
   .hist div{padding:3px 0;border-bottom:1px dotted #eee}
   .empty{padding:26px;text-align:center;color:var(--muted)}
@@ -260,21 +264,20 @@ async function openItem(id, target = "#panel"){
         <span class="pill">v${it.version||1}</span></h3>
     ${it.owner?`<div class="hint">认领人：${esc(it.owner)}（30 分钟无操作自动释放）</div>`:""}
     ${w.length?`<div class="warnbox">自动检查：${w.map(esc).join("；")}</div>`:""}
-    <details class="orig">
-      <summary>原文对照（点开核对）</summary>
-      <div class="fld"><label>导入原文（不可改，用来比对）</label>
-        <div class="origtext">${it.original_answer ? esc(it.original_answer) : '<span class="hint">这条是手工新建，没有导入原文</span>'}</div>
-      </div>
-      <div class="fld"><label>来源页面</label>
-        ${it.source_url ? `<a href="${esc(it.source_url)}" target="_blank" rel="noopener">${esc(it.source_url)}</a>` : '<span class="hint">没填来源链接</span>'}
-      </div>
-      ${d.original_chunk ? `<div class="fld"><label>抓到的页面原文（${esc(d.original_chunk.updated_at||"")}）</label>
-        <div class="origtext">${esc((d.original_chunk.text||"").slice(0, 6000))}</div></div>`
-        : `<div class="hint">这个来源还没有抓取原文；核对请点上面的链接。</div>`}
-      <div class="hint">改了答案后，这里仍显示导入时的原文，方便看出改了哪里。</div>
-    </details>
     <div class="fld"><label>问题</label><input type="text" id="eQ" value="${esc(it.question)}"></div>
-    <div class="fld"><label>答案</label><textarea id="eA">${esc(it.answer)}</textarea></div>
+    <div class="compare">
+      <div class="side">
+        <label>原文（导入时，不可改）</label>
+        <div class="origtext">${it.original_answer ? esc(it.original_answer) : '<span class="hint">这条是手工新建，没有导入原文</span>'}</div>
+        ${it.source_url ? `<a class="srclink" href="${esc(it.source_url)}" target="_blank" rel="noopener">来源页面 ↗</a>` : '<div class="hint">没填来源链接</div>'}
+        ${d.original_chunk ? `<div class="hint">抓到的页面原文：</div><div class="origtext small">${esc((d.original_chunk.text||"").slice(0,3000))}</div>` : ''}
+      </div>
+      <div class="side">
+        <label>答案条目（可改）</label>
+        <textarea id="eA" class="tall">${esc(it.answer)}</textarea>
+        <div class="hint">两边对照着看；改完点「保存修改」或「通过并发布」。</div>
+      </div>
+    </div>
     <div class="row2">
       <div class="fld"><label>分类</label><input type="text" id="eCat" value="${esc(it.category||"")}"></div>
       <div class="fld"><label>时效</label><select id="eTtl">
