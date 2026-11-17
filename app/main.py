@@ -19,11 +19,13 @@ from . import answer as answer_mod
 from . import config, db
 from .auth import User, get_current_user
 from .retrieve import Retriever
+from .admin import router as admin_router
 from .review import router as review_router
 from .review import set_reload
 
 app = FastAPI(title="RC AI Assistant", version="0.1.0")
 app.include_router(review_router)
+app.include_router(admin_router)
 app.mount("/img", StaticFiles(directory=str(config.STATIC_DIR / "img")), name="img")
 
 _state: dict = {"retriever": None, "count": 0}
@@ -171,6 +173,8 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
         q = q[:300]
 
     keys, ip = _quota_keys(request, user)
+    session_id = (request.headers.get("X-Session-Id") or request.headers.get("X-Device-Id") or "")[:64]
+    t0 = time.perf_counter()
 
     tier = _tier(keys, ip)
     if tier == "none":
@@ -187,18 +191,18 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
     if result.get("mode") != "chat":
         _record(keys, tier, ip)
     result["text"] = limit_notice + result["text"]
-    db.log_qa(user.student_id, q, result["text"], hits[0]["score"] if hits else 0.0)
 
     # 书院介绍这类由条目直接拼出来的回答：引用就是那几条，标记已经对齐，不再重编号
     if result.get("sources"):
-        cites = result["sources"]
-        return {
+        out = {
             "answer": result["text"],
             "mode": result["mode"],
-            "citations": cites,
+            "citations": result["sources"],
             "user": user.student_id,
             "quota": dict(zip(("llm_left", "basic_left"), _quota(keys))),
         }
+        _log(q, hits, out, t0, session_id)
+        return out
 
     # 只展示模型真正用到的条目，避免「答案说 A、引用写 B」
     all_cites = answer_mod.citations(hits) if hits else []
@@ -219,13 +223,34 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
     else:
         text = re.sub(r"\s*\[\d+\]", "", text)
 
-    return {
+    out = {
         "answer": text,
         "mode": result["mode"],
         "citations": cites,
         "user": user.student_id,
         "quota": dict(zip(("llm_left", "basic_left"), _quota(keys))),
     }
+    _log(q, hits, out, t0, session_id)
+    return out
+
+
+def _log(q: str, hits: list, out: dict, t0: float, session_id: str) -> None:
+    """写提问流水：带模式、耗时、会话、引用数，后台看板全靠这几个字段。"""
+    db.log_qa(
+        out.get("user") or "",
+        q,
+        out.get("answer") or "",
+        hits[0]["score"] if hits else 0.0,
+        mode=out.get("mode") or "",
+        latency_ms=int((time.perf_counter() - t0) * 1000),
+        session_id=session_id,
+        n_cites=len(out.get("citations") or []),
+    )
+
+
+@app.get("/admin")
+def admin_page() -> FileResponse:
+    return FileResponse(Path(config.STATIC_DIR) / "admin.html")
 
 
 @app.get("/")

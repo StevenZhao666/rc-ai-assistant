@@ -69,3 +69,6 @@ ACADEMIC_YEAR = os.environ.get("ACADEMIC_YEAR", "2026/27")
 
 # 审批人名单（学号或姓名，逗号分隔）。留空 = 不限制（本地开发用）
 REVIEWERS = {x.strip() for x in os.environ.get("REVIEWERS", "").split(",") if x.strip()}
+
+# 管理员名单（能看数据看板、能看完整学号）。留空 = 与 REVIEWERS 相同
+ADMINS = {x.strip() for x in os.environ.get("ADMINS", "").split(",") if x.strip()}

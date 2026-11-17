@@ -1,0 +1,306 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>昆昆 · 数据后台</title>
+<style>
+  :root{
+    --red:#88070f; --red-dark:#6b050c; --bg:#f6f4f2; --card:#fff;
+    --line:#e4ded9; --text:#242021; --muted:#7b736f; --ok:#1c7c54; --warn:#a86400;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.55 -apple-system,"Segoe UI","Microsoft JhengHei","PingFang TC",sans-serif}
+  header{background:var(--red);color:#fff;padding:14px 18px;display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+  header h1{font-size:16px;margin:0;font-weight:600;letter-spacing:.5px}
+  header .sp{flex:1}
+  header input{border:0;border-radius:6px;padding:7px 10px;width:150px;font-size:13px}
+  header button{border:0;border-radius:6px;padding:7px 12px;background:#fff;color:var(--red);font-weight:600;cursor:pointer}
+  header button:hover{background:#ffe9e9}
+  nav{display:flex;gap:4px;padding:10px 14px 0;flex-wrap:wrap}
+  nav button{border:1px solid var(--line);background:#fff;color:var(--muted);padding:7px 13px;border-radius:999px;cursor:pointer;font-size:13px}
+  nav button.on{background:var(--red);border-color:var(--red);color:#fff}
+  main{padding:14px}
+  .kpis{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+  .kpi{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .kpi .n{font-size:24px;font-weight:700;line-height:1.2}
+  .kpi .l{color:var(--muted);font-size:12px;margin-top:2px}
+  .panel{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:14px;margin-bottom:14px;overflow:auto}
+  .panel h2{font-size:14px;margin:0 0 10px;font-weight:600}
+  table{border-collapse:collapse;width:100%;font-size:13px}
+  th,td{text-align:left;padding:7px 9px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--muted);font-weight:600;white-space:nowrap}
+  tr:hover td{background:#faf8f6}
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums}
+  .tag{display:inline-block;padding:1px 7px;border-radius:999px;font-size:11px;background:#eee;color:#555}
+  .tag.llm{background:#e8f3ff;color:#1b5fa8}
+  .tag.fallback{background:#fff1e0;color:var(--warn)}
+  .tag.chat{background:#eef7ee;color:var(--ok)}
+  .tag.policy{background:#fde8e8;color:var(--red)}
+  .muted{color:var(--muted)}
+  .bars{display:flex;align-items:flex-end;gap:6px;height:90px;margin-top:6px}
+  .bars .b{flex:1;background:var(--red);opacity:.75;border-radius:3px 3px 0 0;min-height:2px}
+  .bars .b span{display:block;font-size:10px;color:var(--muted);text-align:center;margin-top:3px}
+  .row{display:flex;gap:14px;flex-wrap:wrap}
+  .row .panel{flex:1;min-width:260px}
+  .err{border-color:#e0b4b4;background:#fff5f5;color:#8a2020}
+  code{background:#f3efec;padding:1px 5px;border-radius:4px;font-size:12px}
+  a{color:var(--red)}
+  .hint{font-size:12px;color:var(--muted);margin:0 0 8px}
+  @media(max-width:640px){ header input{width:110px} .kpi .n{font-size:20px} }
+</style>
+</head>
+<body>
+<header>
+  <h1>昆昆 · 数据后台</h1>
+  <span class="sp"></span>
+  <input id="who" placeholder="管理员学号" maxlength="7" autocomplete="off">
+  <button id="refresh">刷新</button>
+  <button id="logout" title="清除本机保存的身份">清除</button>
+</header>
+
+<nav id="tabs">
+  <button data-tab="overview" class="on">概览</button>
+  <button data-tab="questions">提问流水</button>
+  <button data-tab="gaps">未命中</button>
+  <button data-tab="feedback">反馈</button>
+  <button data-tab="kb">知识库</button>
+  <button data-tab="audit">审批审计</button>
+  <button data-tab="usage">成本</button>
+  <button data-tab="system">系统</button>
+</nav>
+
+<main id="main"><div class="panel muted">填写管理员学号后点「刷新」。</div></main>
+
+<script>
+const $ = s => document.querySelector(s);
+const S = { who: localStorage.getItem('cklc_admin') || '', tab: 'overview', cache: {} };
+
+$('#who').value = S.who;
+$('#who').addEventListener('change', () => {
+  S.who = $('#who').value.trim().toLowerCase();
+  localStorage.setItem('cklc_admin', S.who);
+  load();
+});
+$('#refresh').onclick = () => load(true);
+$('#logout').onclick = () => { localStorage.removeItem('cklc_admin'); S.who=''; $('#who').value=''; alert('已清除本机身份'); };
+
+document.querySelectorAll('#tabs button').forEach(b => b.onclick = () => {
+  S.tab = b.dataset.tab;
+  document.querySelectorAll('#tabs button').forEach(x => x.classList.toggle('on', x === b));
+  load();
+});
+
+const esc = s => (s ?? '').toString().replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const num = n => (n ?? 0).toLocaleString();
+const pct = n => (n * 100).toFixed(0) + '%';
+
+function tag(mode){
+  const b = !mode ? 'unknown' : mode.startsWith('llm') ? 'llm'
+          : mode.startsWith('fallback') ? 'fallback'
+          : mode.startsWith('policy') ? 'policy'
+          : mode.startsWith('chat') ? 'chat' : 'other';
+  return `<span class="tag ${b}">${esc(mode || '旧记录')}</span>`;
+}
+
+async function api(path){
+  if (!S.who) throw new Error('请先填管理员学号');
+  const r = await fetch('/api/admin' + path, { headers: { 'X-Admin': S.who } });
+  if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || ('HTTP ' + r.status));
+  return r.json();
+}
+
+function kpi(n, l){ return `<div class="kpi"><div class="n">${n}</div><div class="l">${l}</div></div>`; }
+function panel(title, body){ return `<div class="panel"><h2>${title}</h2>${body}</div>`; }
+
+function renderOverview(d){
+  const max = Math.max(1, ...d.days.map(x => x.questions));
+  const bars = d.days.map(x => `<div class="b" style="height:${Math.max(2, x.questions / max * 70)}px" title="${x.date}: ${x.questions} 问">
+      <span>${x.date.slice(5)}</span></div>`).join('');
+  const k = d.kb;
+  return `
+  <div class="kpis">
+    ${kpi(num(d.today.questions), '今日提问')}
+    ${kpi(num(d.today.visitors), '今日独立访客')}
+    ${kpi(d.judged ? pct(d.hit_rate) : '—', `有依据的比例（${d.judged} 条新记录）`)}
+    ${kpi(num(d.modes.llm) + ' / ' + num(d.modes.fallback), 'AI 回答 / 兜底')}
+    ${kpi(num(k.published), '已发布条目')}
+    ${kpi(num(d.candidates.pending), '待审候选')}
+    ${kpi(num(d.feedback.up) + ' / ' + num(d.feedback.down), '👍 / 👎')}
+    ${kpi(d.latency.p50 + ' ms', '响应中位数（p95 ' + d.latency.p95 + ' ms）')}
+  </div>
+  ${panel('最近 ' + d.days.length + ' 天提问量', `<div class="bars">${bars}</div>`)}
+  <div class="row">
+    ${panel('回答模式', `<table><tr><th>模式</th><th class="num">次数</th></tr>
+      ${Object.entries(d.modes).map(([m,n])=>`<tr><td>${tag(m==='unknown'?'':m)}</td><td class="num">${num(n)}</td></tr>`).join('')}
+      </table>`)}
+    ${panel('知识库状态', `<table><tr><th>状态</th><th class="num">条目</th></tr>
+      <tr><td>已发布</td><td class="num">${num(k.published)}</td></tr>
+      <tr><td>待审</td><td class="num">${num(k.review)}</td></tr>
+      <tr><td>草稿</td><td class="num">${num(k.draft)}</td></tr>
+      <tr><td>已过期</td><td class="num">${num(k.expired)}</td></tr>
+      <tr><td>已归档</td><td class="num">${num(k.archived)}</td></tr>
+      <tr><td>7 天内到期</td><td class="num">${num(k.expiring)}</td></tr>
+      </table>`)}
+  </div>`;
+}
+
+function renderQuestions(d){
+  const rows = d.rows.map(r => `<tr>
+    <td class="muted">${esc((r.ts||'').slice(5,16))}</td>
+    <td>${esc(r.student_id)}</td>
+    <td>${esc(r.question)}</td>
+    <td>${tag(r.mode)}</td>
+    <td class="num">${r.top_score ? r.top_score.toFixed(1) : '—'}</td>
+    <td class="num">${r.latency_ms ?? '—'}</td>
+    <td class="num">${r.n_cites ?? '—'}</td>
+  </tr>`).join('');
+  return `${panel(`提问流水 · 共 ${num(d.total)} 条（显示 ${d.rows.length}）`,
+    `<p class="hint">学号${d.masked ? '已脱敏' : '完整显示'}；分数是检索得分，低于 2.5 会走兜底。</p>
+     <table><tr><th>时间</th><th>学号</th><th>问题</th><th>模式</th><th class="num">分数</th><th class="num">耗时ms</th><th class="num">引用</th></tr>
+     ${rows || '<tr><td colspan="7" class="muted">这段时间没有记录</td></tr>'}</table>`)}`;
+}
+
+function renderGaps(d){
+  const rows = d.rows.map(g => `<tr>
+    <td>${esc(g.sample)}</td>
+    <td class="num">${g.count}</td>
+    <td class="num">${g.score_max || '—'}</td>
+    <td class="muted">${esc((g.last_ts||'').slice(0,16))}</td>
+    <td><a href="/review" target="_blank">据此新建</a></td>
+  </tr>`).join('');
+  return `${panel(`未命中 · ${num(d.total_groups)} 组`,
+    `<p class="hint">同一问题只算一组；点「据此新建」去审批端补条目。</p>
+     <table><tr><th>问题</th><th class="num">次数</th><th class="num">最高分</th><th>最近</th><th></th></tr>
+     ${rows || '<tr><td colspan="5" class="muted">没有未命中的问题</td></tr>'}</table>`)}`;
+}
+
+function renderFeedback(d){
+  const rows = d.rows.map(r => `<tr>
+    <td class="muted">${esc((r.ts||'').slice(5,16))}</td>
+    <td>${r.vote === 1 ? '👍' : '👎'}</td>
+    <td>${esc(r.question)}</td>
+    <td class="muted">${esc(r.note || '—')}</td>
+    <td>${tag(r.mode)}</td>
+  </tr>`).join('');
+  return `${panel(`反馈 · 👍 ${num(d.up)} / 👎 ${num(d.down)}`,
+    `<table><tr><th>时间</th><th></th><th>问题</th><th>用户写的</th><th>模式</th></tr>
+     ${rows || '<tr><td colspan="5" class="muted">还没有反馈</td></tr>'}</table>`)}`;
+}
+
+function renderKB(d){
+  const st = Object.entries(d.status).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="num">${num(v)}</td></tr>`).join('');
+  const src = Object.entries(d.source_type).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="num">${num(v)}</td></tr>`).join('');
+  const ttl = Object.entries(d.ttl).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="num">${num(v)}</td></tr>`).join('');
+  const exp = d.expiring.map(r=>`<tr><td>${esc(r.question)}</td><td class="muted">${esc(r.valid_until)}</td></tr>`).join('');
+  const bare = d.no_source_items.map(r=>`<tr><td>${esc(r.question)}</td></tr>`).join('');
+  return `
+  <div class="kpis">
+    ${kpi(num(d.total), '条目总数')}
+    ${kpi(num(d.no_source), '已发布但无来源')}
+    ${kpi(num(d.with_warnings), '带警告')}
+    ${kpi(num(d.stale.count), `超 ${d.stale.days} 天未复核`)}
+    ${kpi(num(d.needs_recheck), '待复核')}
+  </div>
+  <div class="row">
+    ${panel('状态分布', `<table>${st}</table>`)}
+    ${panel('来源类型', `<table>${src}</table>`)}
+    ${panel('时效分层', `<table>${ttl}</table>`)}
+  </div>
+  <div class="row">
+    ${panel('即将到期', exp ? `<table><tr><th>问题</th><th>有效期至</th></tr>${exp}</table>` : '<p class="muted">没有</p>')}
+    ${panel('没有来源的已发布条目', bare ? `<table><tr><th>问题</th></tr>${bare}</table>` : '<p class="muted">没有</p>')}
+  </div>`;
+}
+
+function renderAudit(d){
+  const rows = d.rows.map(r => `<tr>
+    <td class="muted">${esc((r.ts||'').slice(5,16))}</td>
+    <td>${esc(r.reviewer)}</td>
+    <td>${esc(r.action)}</td>
+    <td class="muted">#${r.item_id ?? '—'}</td>
+    <td>${esc(r.question || r.note || '')}</td>
+  </tr>`).join('');
+  const acts = Object.entries(d.actions).map(([k,v])=>`<tr><td>${esc(k)}</td><td class="num">${num(v)}</td></tr>`).join('');
+  const locked = d.locked.map(r=>`<tr><td>#${r.id}</td><td>${esc(r.question)}</td><td>${esc(r.owner)}</td></tr>`).join('');
+  return `
+  <div class="row">
+    ${panel('动作统计', `<table>${acts || '<tr><td class="muted">无</td></tr>'}</table>`)}
+    ${panel('当前被认领的条目', locked ? `<table><tr><th>#</th><th>问题</th><th>认领人</th></tr>${locked}</table>` : '<p class="muted">没有认领中的条目</p>')}
+  </div>
+  ${panel('最近操作', `<table><tr><th>时间</th><th>操作人</th><th>动作</th><th>条目</th><th>问题/备注</th></tr>
+    ${rows || '<tr><td colspan="5" class="muted">没有记录</td></tr>'}</table>`)}`;
+}
+
+function renderUsage(d){
+  const rows = d.per_model.map(m => `<tr>
+    <td>${esc(m.model)}</td>
+    <td class="num">${num(m.calls)}</td>
+    <td class="num">${num(m.prompt)}</td>
+    <td class="num">${num(m.completion)}</td>
+    <td class="num">¥${m.cost.toFixed(4)}</td>
+  </tr>`).join('');
+  return `
+  <div class="kpis">
+    ${kpi(num(d.total.calls), '这段时间的模型调用')}
+    ${kpi(num(d.total.prompt), '输入 token')}
+    ${kpi(num(d.total.completion), '输出 token')}
+    ${kpi('¥' + d.total.cost.toFixed(3), '估算费用')}
+  </div>
+  ${panel('按模型', `<p class="hint">单价是估的，免费档记 0；用来判断量级，不做账。</p>
+    <table><tr><th>模型</th><th class="num">调用</th><th class="num">输入</th><th class="num">输出</th><th class="num">估算</th></tr>
+    ${rows || '<tr><td colspan="5" class="muted">没有记录</td></tr>'}</table>`)}`;
+}
+
+function renderSystem(d){
+  return `
+  <div class="kpis">
+    ${kpi(d.db.size_kb + ' KB', '数据库大小')}
+    ${kpi(num(d.db.items), '知识库条目')}
+    ${kpi(num(d.db.questions), '提问记录')}
+    ${kpi(d.backups.count, '备份份数')}
+  </div>
+  <div class="row">
+    ${panel('日志与备份', `<table>
+      <tr><td>提问流水 jsonl</td><td class="num">${num(d.logs.qa_jsonl)} 行</td></tr>
+      <tr><td>模型用量 jsonl</td><td class="num">${num(d.logs.usage_jsonl)} 行</td></tr>
+      <tr><td>最近备份</td><td>${esc(d.backups.latest || '—')}</td></tr>
+      <tr><td>备份时间</td><td class="muted">${esc((d.backups.latest_at||'').slice(0,16))}</td></tr>
+      </table>`)}
+    ${panel('运行环境', `<table>
+      <tr><td>代码版本</td><td><code>${esc(d.git.commit || '—')}</code></td></tr>
+      <tr><td>Python</td><td>${esc(d.runtime.python)}</td></tr>
+      <tr><td>系统</td><td class="muted">${esc(d.runtime.platform)}</td></tr>
+      <tr><td>限额</td><td>${d.limits.llm_per_hour} 次 AI + ${d.limits.basic_per_hour} 次摘录 / 小时</td></tr>
+      <tr><td>服务器时间</td><td class="muted">${esc(d.runtime.now)}</td></tr>
+      </table>`)}
+  </div>`;
+}
+
+const VIEWS = {
+  overview: ['/overview?days=7', renderOverview],
+  questions: ['/questions?days=7&limit=100', renderQuestions],
+  gaps: ['/gaps?days=30', renderGaps],
+  feedback: ['/feedback?limit=100', renderFeedback],
+  kb: ['/kb', renderKB],
+  audit: ['/audit?limit=100', renderAudit],
+  usage: ['/usage?days=7', renderUsage],
+  system: ['/system', renderSystem],
+};
+
+async function load(force){
+  const [path, draw] = VIEWS[S.tab];
+  $('#main').innerHTML = '<div class="panel muted">读取中…</div>';
+  try {
+    const d = await api(path);
+    $('#main').innerHTML = draw(d);
+  } catch (e) {
+    $('#main').innerHTML = `<div class="panel err"><b>读不到数据</b><br>${esc(e.message)}</div>`;
+  }
+}
+
+if (S.who) load();
+</script>
+</body>
+</html>

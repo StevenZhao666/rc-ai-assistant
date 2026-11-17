@@ -51,7 +51,11 @@ CREATE TABLE IF NOT EXISTS qa_log (
     question   TEXT,
     answer     TEXT,
     top_score  REAL,
-    feedback   INTEGER
+    feedback   INTEGER,
+    mode       TEXT,              -- llm:xxx / basic / fallback_live / chat ...
+    latency_ms INTEGER,           -- 端到端耗时
+    session_id TEXT,              -- 同一设备的一串提问
+    n_cites    INTEGER            -- 引用了几个来源
 );
 
 -- 用户反馈：👍/👎 + 可选说明。用来筛出要补/要改的条目
@@ -128,6 +132,12 @@ def _migrate(conn) -> None:
         if name not in cols:
             conn.execute(f"ALTER TABLE kb_item ADD COLUMN {name} {decl}")
 
+    qcols = {r[1] for r in conn.execute("PRAGMA table_info(qa_log)").fetchall()}
+    for name, decl in (("mode", "TEXT"), ("latency_ms", "INTEGER"),
+                       ("session_id", "TEXT"), ("n_cites", "INTEGER")):
+        if name not in qcols:
+            conn.execute(f"ALTER TABLE qa_log ADD COLUMN {name} {decl}")
+
 
 def published_items() -> list[dict]:
     """取出可被检索的条目：已发布 + 未过期。"""
@@ -150,12 +160,14 @@ def published_items() -> list[dict]:
     return out
 
 
-def log_qa(student_id: str, question: str, answer: str, top_score: float) -> None:
+def log_qa(student_id: str, question: str, answer: str, top_score: float,
+           mode: str = "", latency_ms: int = 0, session_id: str = "", n_cites: int = 0) -> None:
     ts = datetime.now().isoformat(timespec="seconds")
     with connect(write=True) as conn:
         conn.execute(
-            "INSERT INTO qa_log (ts, student_id, question, answer, top_score) VALUES (?,?,?,?,?)",
-            (ts, student_id, question, answer, top_score),
+            "INSERT INTO qa_log (ts, student_id, question, answer, top_score, mode, latency_ms, session_id, n_cites)"
+            " VALUES (?,?,?,?,?,?,?,?,?)",
+            (ts, student_id, question, answer, top_score, mode, latency_ms, session_id, n_cites),
         )
         conn.commit()
     # 同时写一份 append-only 的流水：库被删/重建也不影响这份记录
