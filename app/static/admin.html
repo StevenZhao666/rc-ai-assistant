@@ -104,9 +104,12 @@ function tag(mode){
   return `<span class="tag ${b}">${esc(mode || '旧记录')}</span>`;
 }
 
+// 页面可能挂在子路径下（例如 Apache 反代到 /ai/admin），所以不能用绝对路径 /api/admin
+const API = location.pathname.replace(/\/admin\/?$/, '') + '/api/admin';
+
 async function api(path){
   if (!S.who) throw new Error('请先填管理员学号');
-  const r = await fetch('/api/admin' + path, { headers: { 'X-Admin': S.who } });
+  const r = await fetch(API + path, { headers: { 'X-Admin': S.who } });
   if (!r.ok) throw new Error((await r.json().catch(()=>({}))).detail || ('HTTP ' + r.status));
   return r.json();
 }
