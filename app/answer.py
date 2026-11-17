@@ -523,5 +523,6 @@ def citations(hits: list[dict]) -> list[dict]:
             "score": h.get("score"),
             "warnings": h.get("warnings") or [],
             "ttl_type": h.get("ttl_type"),
+            "answer": (h.get("answer") or "")[:600],
         })
     return out

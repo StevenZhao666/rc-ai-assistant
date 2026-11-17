@@ -39,7 +39,17 @@
           padding:12px 16px;white-space:pre-wrap;word-break:break-word}
   .msg.user .bubble{background:#fdf4f3;border-color:#e3c9c7}
   .cite{margin-top:12px;border-top:1px dashed var(--line);padding-top:10px;font-size:13px;color:var(--dim)}
+  .cite summary{cursor:pointer;font-size:12.5px;color:var(--brand);font-weight:600;list-style:none}
+  .cite summary::-webkit-details-marker{display:none}
+  .cite summary::before{content:"▸ ";display:inline-block;transition:transform .15s}
+  .cite[open] summary::before{transform:rotate(90deg)}
   .cite b{color:var(--ink);font-weight:600}
+  .citeItem{margin-top:10px;padding:8px 10px;background:#fbf9f7;border:1px solid var(--line);border-radius:8px}
+  .citeMeta{font-size:11.5px;color:var(--dim)}
+  .citeQ{font-size:12.5px;margin-top:3px}
+  .citeA{margin-top:5px;font-size:12.5px;color:var(--ink);white-space:pre-wrap;
+         max-height:150px;overflow:auto;border-left:2px solid #e6d9d7;padding-left:8px}
+  .citeLink{display:inline-block;margin-top:6px;font-size:12px;color:var(--brand)}
   .tag{display:inline-block;font-size:11.5px;padding:1px 7px;border-radius:6px;margin:4px 6px 0 0;
        background:#fff4d6;color:var(--warn);border:1px solid #ecd9a6}
   .fail{border-color:#e0b4b1}
@@ -143,7 +153,8 @@ const T = {
     tooMany: "這個小時問得太多了，過一會兒再來。",
     quotaTip: "本小時的 AI 回答次數用完了，後面會改為直接摘錄資料原文。",
     reqFail: "請求失敗：",
-    cite: "依據", verified: "核實於", unverified: "未核實", matched: "匹配條目："
+    cite: "依據", verified: "核實於", unverified: "未核實", matched: "匹配條目：",
+    citeHint: "點開看原文", sourceLink: "原始頁面"
   },
   "zh-Hans": {
     title: "昆昆 · 张昆仑书院助手",
@@ -168,7 +179,8 @@ const T = {
     tooMany: "这个小时问得太多了，过一会儿再来。",
     quotaTip: "本小时的 AI 回答次数用完了，后面会改为直接摘录资料原文。",
     reqFail: "请求失败：",
-    cite: "依据", verified: "核实于", unverified: "未核实", matched: "匹配条目："
+    cite: "依据", verified: "核实于", unverified: "未核实", matched: "匹配条目：",
+    citeHint: "点开看原文", sourceLink: "原始页面"
   },
   "en": {
     title: "Kunkun · CKLC Assistant",
@@ -193,7 +205,8 @@ const T = {
     tooMany: "Too many questions this hour. Try again later.",
     quotaTip: "Hourly AI quota used up — falling back to quoting the source text.",
     reqFail: "Request failed: ",
-    cite: "Source", verified: "verified", unverified: "unverified", matched: "Matched entry: "
+    cite: "Source", verified: "verified", unverified: "unverified", matched: "Matched entry: ",
+    citeHint: "tap to read the source text", sourceLink: "original page"
   }
 };
 
@@ -226,6 +239,7 @@ function headers() {
 /* ── 界面文字 ─────────────────────────────────── */
 const $ = s => document.querySelector(s);
 const log = $('#log'), qEl = $('#q'), sendBtn = $('#send'), whoEl = $('#who');
+let welcomeBubble = null;   // 开场白气泡：切语言时要跟着换
 
 function paintChrome() {
   document.documentElement.lang = S.lang;
@@ -251,8 +265,11 @@ function paintChrome() {
 
   if (!log.dataset.welcomed) {
     log.innerHTML = '';
-    addMsg('ai', t('welcome'));
+    welcomeBubble = addMsg('ai', t('welcome'));
     log.dataset.welcomed = '1';
+  } else if (welcomeBubble) {
+    // 切语言时，开场白也要跟着换
+    welcomeBubble.textContent = t('welcome');
   }
 }
 
@@ -310,14 +327,35 @@ function addMsg(role, text) {
 
 function renderCitations(bubble, cites) {
   if (!cites || !cites.length) return;
-  const box = document.createElement('div');
+  const box = document.createElement('details');
   box.className = 'cite';
+  const sum = document.createElement('summary');
+  sum.textContent = `${t('cite')} ${cites.length} · ${t('citeHint')}`;
+  box.appendChild(sum);
   cites.forEach((c, i) => {
     const d = document.createElement('div');
-    d.style.marginTop = i ? '8px' : '0';
-    d.innerHTML = `<b>${t('cite')} ${i+1}：</b>${c.source || '—'}`
-      + `（${c.verified_at ? t('verified') + ' ' + c.verified_at : t('unverified')}）`
-      + `<div style="margin-top:2px">${t('matched')}${c.question}</div>`;
+    d.className = 'citeItem';
+    const head = document.createElement('div');
+    head.innerHTML = `<b>${i + 1}. ${c.source || '—'}</b>`
+      + ` <span class="citeMeta">${c.verified_at ? t('verified') + ' ' + c.verified_at : t('unverified')}</span>`;
+    d.appendChild(head);
+    const q = document.createElement('div');
+    q.className = 'citeQ';
+    q.textContent = (t('matched') || '') + (c.question || '');
+    d.appendChild(q);
+    if (c.answer) {
+      const a = document.createElement('div');
+      a.className = 'citeA';
+      a.textContent = c.answer;
+      d.appendChild(a);
+    }
+    if (c.source_url) {
+      const l = document.createElement('a');
+      l.href = c.source_url; l.target = '_blank'; l.rel = 'noopener';
+      l.textContent = (t('sourceLink') || 'source') + ' ↗';
+      l.className = 'citeLink';
+      d.appendChild(l);
+    }
     (c.warnings || []).forEach(w => {
       const sp = document.createElement('span');
       sp.className = 'tag'; sp.textContent = '⚠ ' + w;

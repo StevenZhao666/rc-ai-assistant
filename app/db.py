@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS kb_item (
     verified_at TEXT,              -- 最后核实日期
     valid_until TEXT,              -- 失效日期（可空）
     warnings    TEXT,              -- JSON 数组：自动检查发现的问题
+    original_answer TEXT,          -- 导入时的原文，供审核对照；之后不再改
     created_at  TEXT NOT NULL
 );
 
@@ -132,11 +133,28 @@ def _migrate(conn) -> None:
         if name not in cols:
             conn.execute(f"ALTER TABLE kb_item ADD COLUMN {name} {decl}")
 
+    kcols = {r[1] for r in conn.execute("PRAGMA table_info(kb_item)").fetchall()}
+    if "original_answer" not in kcols:
+        conn.execute("ALTER TABLE kb_item ADD COLUMN original_answer TEXT")
+        # 老条目：把当前答案当作原文留档，之后审核时能看出改了什么
+        conn.execute("UPDATE kb_item SET original_answer = answer WHERE original_answer IS NULL")
+
     qcols = {r[1] for r in conn.execute("PRAGMA table_info(qa_log)").fetchall()}
     for name, decl in (("mode", "TEXT"), ("latency_ms", "INTEGER"),
                        ("session_id", "TEXT"), ("n_cites", "INTEGER")):
         if name not in qcols:
             conn.execute(f"ALTER TABLE qa_log ADD COLUMN {name} {decl}")
+
+
+def find_chunk(url: str) -> dict | None:
+    """按来源 URL 找抓到的页面原文，供审核对照。没有就返回 None。"""
+    if not url:
+        return None
+    with connect() as conn:
+        row = conn.execute(
+            "SELECT id, url, title, text, updated_at FROM chunk WHERE url = ? ORDER BY id DESC LIMIT 1",
+            (url,)).fetchone()
+    return dict(row) if row else None
 
 
 def published_items() -> list[dict]:
@@ -281,6 +299,7 @@ def create_item(fields: dict) -> int:
     data.setdefault("audience", "all")
     data.setdefault("source_type", "official")
     data.setdefault("created_at", datetime.now().isoformat(timespec="seconds"))
+    data.setdefault("original_answer", data.get("answer") or "")
     cols = ", ".join(data)
     marks = ", ".join("?" * len(data))
     with connect(write=True) as conn:
