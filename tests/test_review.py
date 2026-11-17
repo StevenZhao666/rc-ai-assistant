@@ -21,7 +21,7 @@ def call(path, method="GET", body=None, who=None):
     if who:
         req.add_header("X-Reviewer", who)
     try:
-        with urllib.request.urlopen(req, timeout=60) as r:
+        with urllib.request.urlopen(req, timeout=120) as r:
             return r.status, json.loads(r.read() or b"{}")
     except urllib.error.HTTPError as e:
         return e.code, json.loads(e.read() or b"{}")

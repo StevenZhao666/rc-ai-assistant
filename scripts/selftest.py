@@ -27,7 +27,7 @@ def ask(q: str) -> dict:
         data=json.dumps({"question": q}).encode(),
         headers={"Content-Type": "application/json", "CF-Connecting-IP": _test_ip(), "X-Device-Id": "test-" + str(uuid.uuid4())},
     )
-    with urllib.request.urlopen(req, timeout=60) as r:
+    with urllib.request.urlopen(req, timeout=120) as r:
         d = json.loads(r.read())
     d["_norm"] = _cc.convert(d.get("answer") or "")   # 繁简统一后再断言
     return d

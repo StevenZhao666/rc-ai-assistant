@@ -207,6 +207,10 @@ def ask(body: AskIn, request: Request, user: User = Depends(get_current_user)) -
     # 只展示模型真正用到的条目，避免「答案说 A、引用写 B」
     all_cites = answer_mod.citations(hits) if hits else []
     used = sorted({i for i in (result.get("used") or []) if 0 < i <= len(all_cites)})
+    # 可追溯性兜底：模型偶尔忘了标 [n]，但检索确实命中时，仍把最相关的那条挂出来
+    if (not used and result.get("mode", "").startswith("llm")
+            and hits and hits[0].get("score", 0) >= config.MIN_SCORE):
+        used = [1]
     cites = [all_cites[i - 1] for i in used]
 
     # 基础档案（楼栋、成立年份、地址电话这类）不挂"依据"卡片：
