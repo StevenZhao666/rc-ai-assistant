@@ -99,7 +99,8 @@ def item(item_id: int, request: Request) -> dict:
     if not it:
         raise HTTPException(404, "条目不存在")
     return {"item": it, "history": db.item_history(item_id),
-            "original_chunk": db.find_chunk(it.get("source_url") or "")}
+            "original_chunk": db.find_chunk(it.get("source_url") or ""),
+            "related": db.related_chunks(it.get("question") or "", it.get("answer") or "", limit=3)}
 
 
 @router.post("/api/review/item/{item_id}/claim")

@@ -41,7 +41,10 @@ CREATE TABLE IF NOT EXISTS chunk (
     title      TEXT,
     text       TEXT,
     status     TEXT DEFAULT 'draft',
-    updated_at TEXT
+    updated_at TEXT,
+    anchor     TEXT,              -- 条款号，如 4.2
+    version    TEXT,              -- 规章版本，如 AY2026-2027
+    source     TEXT               -- 来源说明（文件名 + 哈希）
 );
 
 -- 问答日志：用来找「答不了的问题」
@@ -139,6 +142,11 @@ def _migrate(conn) -> None:
         # 老条目：把当前答案当作原文留档，之后审核时能看出改了什么
         conn.execute("UPDATE kb_item SET original_answer = answer WHERE original_answer IS NULL")
 
+    ccols = {r[1] for r in conn.execute("PRAGMA table_info(chunk)").fetchall()}
+    for name, decl in (("anchor", "TEXT"), ("version", "TEXT"), ("source", "TEXT")):
+        if name not in ccols:
+            conn.execute(f"ALTER TABLE chunk ADD COLUMN {name} {decl}")
+
     qcols = {r[1] for r in conn.execute("PRAGMA table_info(qa_log)").fetchall()}
     for name, decl in (("mode", "TEXT"), ("latency_ms", "INTEGER"),
                        ("session_id", "TEXT"), ("n_cites", "INTEGER")):
@@ -155,6 +163,89 @@ def find_chunk(url: str) -> dict | None:
             "SELECT id, url, title, text, updated_at FROM chunk WHERE url = ? ORDER BY id DESC LIMIT 1",
             (url,)).fetchone()
     return dict(row) if row else None
+
+
+
+
+# 规章是双语的（有的条款只有英文），中文提问要能对上英文条款。
+# 这不是翻译，只是一张常用词对照表；不够用时往里加。
+_ZH_EN = {
+    "宠物": ["pet", "animal"], "養寵物": ["pet"], "养宠物": ["pet"],
+    "訪客": ["visitor", "guest"], "访客": ["visitor", "guest"], "過夜": ["overnight", "stay"],
+    "过夜": ["overnight"], "換房": ["change of room", "room change"], "换房": ["room"],
+    "吸煙": ["smoking", "smoke"], "吸烟": ["smoking"], "清潔": ["cleaning", "clean"],
+    "清洁": ["cleaning"], "電器": ["appliance", "electrical"], "电器": ["appliance"],
+    "門禁": ["curfew", "access"], "门禁": ["curfew"], "押金": ["deposit"],
+    "退宿": ["check-out", "checkout", "vacate", "leave"], "訪客登記": ["registration"], "噪音": ["noise"],
+    "安静": ["noise", "quiet"], "廚房": ["kitchen"], "厨房": ["kitchen"],
+    "洗衣": ["laundry"], "維修": ["repair", "maintenance"], "维修": ["repair"],
+    "違規": ["violation", "breach"], "违规": ["violation"], "處分": ["disciplinary", "penalty"],
+    "处分": ["disciplinary"], "膳食": ["meal"], "饭堂": ["canteen", "dining"],
+    "火警": ["fire"], "演習": ["drill"], "演习": ["drill"], "行李": ["luggage"],
+    "室友": ["roommate"], "暑期": ["summer"], "續住": ["renew", "extension"],
+    "续住": ["renew"], "學生證": ["student card"], "学生证": ["student card"],
+}
+
+# 这些词组在任何条款里都有，拿它们算相关等于没算
+_STOP = {"書院", "书院", "大學", "大学", "學生", "学生", "可以", "什麼", "什么", "怎麼", "怎么",
+         "請問", "请问", "如何", "我們", "我们", "是否", "需要", "規定", "规定", "問題", "问题",
+         "澳門", "澳门", "香港", "內地", "内地", "論壇", "论坛", "網站", "网站"}
+
+_BIGRAM = lambda t: {t[i:i + 2] for i in range(len(t) - 1)}
+
+
+def _tokens(text: str) -> set[str]:
+    """中文取二元组，英文取小写词；够用且不用分词库。"""
+    import re as _re
+    text = (text or "").lower()
+    zh = "".join(ch for ch in text if "一" <= ch <= "鿿")
+    en = set(_re.findall(r"[a-z]{3,}", text))
+    return (_BIGRAM(zh) if len(zh) > 1 else set()) | en
+
+
+def related_chunks(question: str, answer: str = "", limit: int = 3, min_score: float = 0.0) -> list[dict]:
+    """按词面重合找最相关的规章原文段落，给审核对照用。"""
+    q = (_tokens(question) | _tokens(answer)) - _STOP
+    # 中文问句补上英文关键词，才能对上英文条款
+    strong: set[str] = set()
+    for zh, ens in _ZH_EN.items():
+        if zh in (question or "") or zh in (answer or ""):
+            strong.update(e.lower() for e in ens)
+    q |= strong
+    if not q:
+        return []
+    with connect() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = [dict(r) for r in conn.execute(
+            "SELECT id, anchor, version, text, source, url FROM chunk WHERE status='published'").fetchall()]
+    # 去掉「到处都是」的词：某词若在超过 12% 的条款里出现，它对区分没有帮助
+    corpus = [_tokens(r["text"]) for r in rows]
+    df: dict[str, int] = {}
+    for toks in corpus:
+        for w in toks:
+            df[w] = df.get(w, 0) + 1
+    limit_df = max(3, int(len(rows) * 0.12))
+    q = {w for w in q if df.get(w, 0) <= limit_df}
+    if not q:
+        return []
+    strong &= q
+
+    scored = []
+    for toks, r in zip(corpus, rows):
+        t = toks
+        if not t:
+            continue
+        hit = len(q & t)
+        # 命中常用词对照表里的词，一条也算相关（规章有的条款只有英文）
+        if hit >= 2 or (strong & t):
+            scored.append((hit, hit / (len(q) ** 0.5), r))
+    scored.sort(key=lambda x: (-x[0], -x[1]))
+    out = []
+    for hit, ratio, r in scored[:limit]:
+        r["score"] = round(ratio, 2)
+        r["text"] = (r["text"] or "")[:400]
+        out.append(r)
+    return out
 
 
 def published_items() -> list[dict]:
