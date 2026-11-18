@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>昆昆 · 项目结构图</title>
+<style>
+  :root{
+    --red:#88070f; --ink:#241f20; --dim:#7b736f; --line:#e6dfda; --bg:#fbf9f7;
+    --blue:#1b5fa8; --blue-bg:#eef4fb; --green:#1c7c54; --green-bg:#f1f8f4;
+    --amber:#a86400; --amber-bg:#fff8ec; --gray-bg:#f3efec;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--ink);
+       font:14px/1.6 -apple-system,"Segoe UI","Microsoft JhengHei","PingFang TC",sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:28px 26px 60px}
+  h1{font-size:22px;margin:0 0 4px}
+  .sub{color:var(--dim);font-size:13px;margin-bottom:26px}
+  h2{font-size:15px;margin:34px 0 10px;padding-left:10px;border-left:4px solid var(--red)}
+  h2 .n{color:var(--red);margin-right:6px}
+  .note{color:var(--dim);font-size:12.5px;margin:2px 0 12px}
+  .layer{border:1px solid var(--line);border-radius:10px;padding:12px;background:var(--bg);margin-bottom:10px}
+  .layer .tag{display:inline-block;font-size:11.5px;color:var(--dim);letter-spacing:.06em;margin-bottom:8px}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .box{flex:1 1 0;min-width:150px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:10px 12px}
+  .box b{display:block;font-size:13.5px;margin-bottom:2px}
+  .box span{font-size:12px;color:var(--dim)}
+  .box.red{border-color:#e3c2c0;background:#fdf5f4}
+  .box.blue{background:var(--blue-bg);border-color:#cfe0f3}
+  .box.green{background:var(--green-bg);border-color:#cde6d8}
+  .box.amber{background:var(--amber-bg);border-color:#f0dfb9}
+  .box.gray{background:var(--gray-bg)}
+  .arrow{text-align:center;color:var(--dim);font-size:16px;line-height:1;margin:6px 0}
+  .steps{counter-reset:s;margin:0;padding:0;list-style:none}
+  .steps li{position:relative;padding:7px 0 7px 34px;border-bottom:1px dashed var(--line);font-size:13px}
+  .steps li:last-child{border:0}
+  .steps li::before{counter-increment:s;content:counter(s);position:absolute;left:0;top:8px;
+    width:22px;height:22px;border-radius:50%;background:var(--red);color:#fff;font-size:11.5px;
+    display:flex;align-items:center;justify-content:center}
+  table{border-collapse:collapse;width:100%;font-size:12.5px;margin-top:6px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--dim);font-weight:600;background:#fcfaf8}
+  code{font-family:ui-monospace,Consolas,monospace;font-size:12px;background:#f4f0ed;padding:1px 5px;border-radius:4px}
+  .mono{font-family:ui-monospace,Consolas,monospace;font-size:12px;color:var(--dim)}
+  .split{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  @media(max-width:820px){.split{grid-template-columns:1fr}}
+  .legend{font-size:12px;color:var(--dim);margin-top:8px}
+  .legend i{display:inline-block;width:10px;height:10px;border-radius:2px;margin:0 4px 0 10px;vertical-align:-1px}
+  .future{border:1px dashed #c9bdb6;background:#fdfbfa}
+  .future .box{border-style:dashed}
+  footer{margin-top:36px;color:var(--dim);font-size:12px;border-top:1px solid var(--line);padding-top:10px}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>昆昆 · 书院问答助手 — 项目结构</h1>
+  <div class="sub">从全景到数据库。实线框＝现在已经有的；虚线框＝设想，还没做。</div>
+
+  <!-- 1 全景 -->
+  <h2><span class="n">01</span>全景：谁能用、经过什么、数据在哪</h2>
+  <div class="layer">
+    <div class="tag">使用者</div>
+    <div class="row">
+      <div class="box"><b>学生</b><span>手机浏览器，繁/简/英</span></div>
+      <div class="box"><b>审核人</b><span>审批页，绑定条款、发布</span></div>
+      <div class="box"><b>管理员</b><span>数据后台，看流水与成本</span></div>
+      <div class="box fiber future" style="flex:1 1 0"><b>其他系统（设想）</b><span>别的项目 / 同学的 AI，通过 API 或 MCP</span></div>
+    </div>
+  </div>
+  <div class="arrow">↓ HTTPS</div>
+  <div class="layer">
+    <div class="tag">服务（单进程 FastAPI，一台 2C4G）</div>
+    <div class="row">
+      <div class="box red"><b>/api/ask</b><span>提问：限流 → 意图 → 检索 → 回答 → 溯源</span></div>
+      <div class="box blue"><b>/review</b><span>审批：队列、认领锁、绑定条款、留痕</span></div>
+      <div class="box green"><b>/admin</b><span>看板：8 个面板，只读</span></div>
+    </div>
+  </div>
+  <div class="arrow">↓</div>
+  <div class="layer">
+    <div class="tag">核心能力</div>
+    <div class="row">
+      <div class="box"><b>检索</b><span>中文二元组 + BM25，繁简归一</span></div>
+      <div class="box"><b>回答</b><span>只依据已发布条目，句末标 [n]</span></div>
+      <div class="box"><b>溯源</b><span>问答 → 条款号 → 原文</span></div>
+      <div class="box"><b>兜底</b><span>实时/缺口/越界各有出口</span></div>
+    </div>
+  </div>
+  <div class="arrow">↓</div>
+  <div class="layer">
+    <div class="tag">数据与外部</div>
+    <div class="row">
+      <div class="box amber"><b>SQLite</b><span>kb_item / chunk / qa_log / feedback / review_log / candidate</span></div>
+      <div class="box amber"><b>流水文件</b><span>qa_log.jsonl、llm_usage.jsonl</span></div>
+      <div class="box"><b>模型</b><span>OpenAI 兼容链：智谱 3 档 → DeepSeek 兜底</span></div>
+      <div class="box"><b>官方资料</b><span>规章 PDF、房间规定、官网页面</span></div>
+    </div>
+  </div>
+
+  <!-- 2 一次提问 -->
+  <h2><span class="n">02</span>一次提问经过什么（八步）</h2>
+  <ol class="steps">
+    <li><b>识别身份</b>：请求头里的学号（7 位）＋设备号，决定限额档。</li>
+    <li><b>安全优先</b>：代写、医疗、情绪、安全、跨书院 → 专用话术，不检索。</li>
+    <li><b>实时与缺口拦截</b>：天气走气象局；押金、门禁这类确知没有的直接说去哪问。</li>
+    <li><b>意图判断</b>：命中很强就直接查资料；否则让模型判“要不要查”。闲聊直接回，不占额度。</li>
+    <li><b>检索</b>：繁简归一 → 中文二元组 → BM25 → 取分数最高的几条。</li>
+    <li><b>生成</b>：只给模型这几条资料，要求句末标 <code>[n]</code>，不许编。</li>
+    <li><b>溯源</b>：只展示模型真正引用的条目；若它漏标，仍挂出最相关那一条。</li>
+    <li><b>记账</b>：<code>qa_log</code> 记模式、耗时、引用数；<code>llm_usage</code> 记 token。</li>
+  </ol>
+
+  <!-- 3 代码 -->
+  <h2><span class="n">03</span>代码模块（谁负责什么）</h2>
+  <div class="split">
+    <div class="layer">
+      <div class="tag">app/</div>
+      <table>
+        <tr><th>文件</th><th>职责</th></tr>
+        <tr><td><code>main.py</code></td><td>路由、限流、记账；一次提问的装配</td></tr>
+        <tr><td><code>answer.py</code></td><td>提示词、意图判断、安全与兜底分支、引用解析</td></tr>
+        <tr><td><code>retrieve.py</code></td><td>分词 + BM25 检索</td></tr>
+        <tr><td><code>db.py</code></td><td>建表/迁移、状态机、审批锁、条款匹配、日志</td></tr>
+        <tr><td><code>review.py</code></td><td>审批接口：队列、认领、绑定条款、留痕</td></tr>
+        <tr><td><code>admin.py</code></td><td>后台只读接口（8 个）</td></tr>
+        <tr><td><code>i18n.py</code></td><td>繁/简/英文案与兜底话术</td></tr>
+        <tr><td><code>config.py</code></td><td>路径、书院信息、阈值、名单</td></tr>
+        <tr><td><code>static/</code></td><td>学生端、审批页、看板（原生 HTML/JS）</td></tr>
+      </table>
+    </div>
+    <div class="layer">
+      <div class="tag">scripts/ 与 tests/</div>
+      <table>
+        <tr><th>脚本</th><th>用途</th></tr>
+        <tr><td><code>build_kb.py</code></td><td>Excel → 条目（含检查与分层）</td></tr>
+        <tr><td><code>ingest_pdf.py</code></td><td>规章/规定 PDF → 段落级原文（带条款号、版本）</td></tr>
+        <tr><td><code>autobind.py</code></td><td>问答 → 条款 的初稿绑定（模型判断）</td></tr>
+        <tr><td><code>expire.py</code></td><td>到期自动下架</td></tr>
+        <tr><td><code>selftest.py</code></td><td>12 条端到端断言</td></tr>
+        <tr><td><code>tests/</code></td><td>16 条人物回归、13 步审批、18 条看板</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- 4 数据库现状 -->
+  <h2><span class="n">04</span>数据库现状（6 张表，SQLite）</h2>
+  <div class="note">核心思路：<b>一条知识＝一条断言</b>；检索只吃 <code>published</code> 且未过期的；原文与问答分开存。</div>
+  <table>
+    <tr><th style="width:130px">表</th><th>存什么</th><th style="width:250px">关键字段</th><th style="width:180px">与谁关联</th></tr>
+    <tr><td><code>kb_item</code></td><td>问答条目：问题、答案、来源、状态、时效、绑定条款</td>
+        <td><code>status</code> <code>ttl_type</code> <code>source_url</code> <code>original_answer</code> <code>source_chunk_id</code></td>
+        <td>→ chunk（依据）<br>→ review_log</td></tr>
+    <tr><td><code>chunk</code></td><td>条款级原文：手册、房间规定，一段一条</td>
+        <td><code>anchor</code> <code>section</code> <code>variant</code> <code>version</code> <code>hash</code></td>
+        <td>← kb_item.source_chunk_id</td></tr>
+    <tr><td><code>qa_log</code></td><td>每次提问：谁、问什么、答什么、什么模式、多久、引用几条</td>
+        <td><code>mode</code> <code>latency_ms</code> <code>session_id</code> <code>n_cites</code></td>
+        <td>→ 未命中/看板</td></tr>
+    <tr><td><code>feedback</code></td><td>👍/👎 与用户写的原因</td>
+        <td><code>vote</code> <code>note</code> <code>mode</code></td>
+        <td>→ kb_item（按问题）</td></tr>
+    <tr><td><code>review_log</code></td><td>审批留痕：谁、何时、对本条做了什么（含 autobind/bind）</td>
+        <td><code>action</code> <code>reviewer</code> <code>before</code> <code>after</code></td>
+        <td>→ kb_item / candidate</td></tr>
+    <tr><td><code>candidate</code></td><td>从官网抓来、还没成条目的候选</td>
+        <td><code>url</code> <code>status</code> <code>item_id</code></td>
+        <td>→ kb_item（转化后）</td></tr>
+  </table>
+  <div class="legend">
+    <i style="background:#fdf5f4;border:1px solid #e3c2c0"></i>问答层（可审核、可改）
+    <i style="background:#eef4fb;border:1px solid #cfe0f3"></i>原文层（只加不改）
+    <i style="background:#fff8ec;border:1px solid #f0dfb9"></i>行为记录（只追加）
+  </div>
+
+  <!-- 5 未来库 -->
+  <h2><span class="n">05</span>未来的书院数据库（设想，未实施）</h2>
+  <div class="note">目标：不只服务昆昆，还能给别的项目、同学的 AI 用。关键是<b>分层</b>和<b>版本</b>。</div>
+  <div class="layer future">
+    <div class="tag">三层，从下往上</div>
+    <div class="row">
+      <div class="box blue"><b>① 原文层</b><span>规章/通知/手册，带版本与生效、废止日期。只加不改，任何历史版本可回溯。</span></div>
+      <div class="box"><b>② 知识层</b><span>QA 条目、术语表、常见误解。每条指向原文层的一段，可审核。</span></div>
+      <div class="box green"><b>③ 入口层</b><span>API / MCP：谁能拿什么、限流、审计。</span></div>
+    </div>
+  </div>
+  <div class="arrow">↓ 需要新增的表（草图）</div>
+  <table class="future">
+    <tr><th style="width:150px">表（设想）</th><th>作用</th><th style="width:250px">为什么需要</th></tr>
+    <tr><td><code>doc</code></td><td>一份文件：标题、类型、发布机构、版本、生效/废止日期、文件哈希</td><td>现在版本信息散在 chunk 字段里，无法回答“这条何时失效”</td></tr>
+    <tr><td><code>doc_version</code></td><td>文件的一次修订：版本号、发布日期、原文文件</td><td>规章会改版，学生可能引用旧版</td></tr>
+    <tr><td><code>clause</code></td><td>条款：doc_version + 条款号 + 正文 + 语言</td><td>现在 <code>chunk</code> 兼任，字段越来越挤</td></tr>
+    <tr><td><code>kb_item_ref</code></td><td>问答 ↔ 条款 的多对多，带“依据强度”（直接规定 / 解释 / 参考）</td><td>一条问答可能靠两条条款；现在只能绑一条</td></tr>
+    <tr><td><code>client</code></td><td>调用方：名称、类型（内部/学生/外部）、密钥、scope、限流</td><td>对外开放必须有身份与配额</td></tr>
+    <tr><td><code>api_log</code></td><td>对外调用记录：谁、问什么、返回哪些条目、耗时</td><td>出事能追；也能统计哪些内容最常被查</td></tr>
+    <tr><td><code>glossary</code></td><td>书院术语（HA、RC、High Table…）与解释</td><td>学生问“什么是 HA”，现在靠条目凑</td></tr>
+  </table>
+  <div class="legend">对外只读接口建议先只开四个：<code>search_kb</code>、<code>get_item</code>、<code>get_clause</code>、<code>list_updates</code>；MCP 就是把它们在协议层包一层。</div>
+
+  <footer>
+    现状数字：问答 115 条（已发布）· 条款 368 条（手册 240 + 房间规定 128）· 提问流水 743 条 · 模型调用 670 次<br>
+    技术栈：FastAPI + SQLite + 原生前端；单进程 2C4G；模型走 OpenAI 兼容链。
+  </footer>
+</div>
+</body>
+</html>
