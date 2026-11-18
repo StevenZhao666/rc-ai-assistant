@@ -23,6 +23,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 from app import db  # noqa: E402
 
 CLAUSE = re.compile(r"^\s*(\d+(?:\.\d+)+)\s+(.*)$")
+FLAT = re.compile(r"^\s*(\d+)\.\s+(.*)$")
 SECTION = re.compile(r"^\s*(\d+)\.\s+([A-Z][^\n]{2,60})$")
 NOISE = re.compile(r"^P\s*a\s*g\s*e\s*\|\s*\d+|^Cheong Kun Lun College STUDENT HANDBOOK$")
 
@@ -43,6 +44,9 @@ def variant_of(text: str) -> str:
 
 def parse(pdf_path: Path) -> list[dict]:
     doc = pymupdf.open(pdf_path)
+    raw = chr(10).join(p.get_text() for p in doc)
+    # 有 5 条以上「1.1」式编号才按条款切；否则按「1. 2.」平铺编号切
+    flat_mode = len(re.findall(r"^\s*\d+\.\d+\s", raw, re.M)) < 5
     clauses: list[dict] = []
     section = ""
     current: dict | None = None
@@ -57,6 +61,16 @@ def parse(pdf_path: Path) -> list[dict]:
 
     for page in doc:
         for line in clean_lines(page.get_text()):
+            if flat_mode:
+                m2 = FLAT.match(line)
+                if m2:
+                    flush()
+                    current = {"anchor": m2.group(1), "section": "", "text": m2.group(2)}
+                    continue
+                if current:
+                    joiner = "" if re.search(r"[一-鿿]$", current["text"]) else " "
+                    current["text"] += joiner + line
+                continue
             m_sec = SECTION.match(line)
             if m_sec and "." not in m_sec.group(1):
                 flush()
@@ -89,6 +103,15 @@ def main() -> None:
         sys.exit(f"找不到文件：{path}")
 
     clauses = parse(path)
+    if clauses and not clauses[0].get("section"):
+        try:
+            head = [l.strip() for l in pymupdf.open(path)[0].get_text().splitlines() if l.strip()][:6]
+            guess = next((l for l in head if re.search(r"Rules|Guidelines|Regulations", l, re.I)), "")
+            if guess:
+                for c in clauses:
+                    c["section"] = guess[:80]
+        except Exception:
+            pass
     if not clauses:
         sys.exit("没切出条款，检查 PDF 是否是扫描件")
 

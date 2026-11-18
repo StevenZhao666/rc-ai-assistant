@@ -248,6 +248,16 @@ _ZH_EN = {
     "火警": ["fire"], "演習": ["drill"], "演习": ["drill"], "行李": ["luggage"],
     "室友": ["roommate"], "暑期": ["summer"], "續住": ["renew", "extension"],
     "续住": ["renew"], "學生證": ["student card"], "学生证": ["student card"],
+    # 房间类设施（房间使用规定的 PDF 都是英文）
+    "琴房": ["music", "practice"], "音樂室": ["music"], "音乐室": ["music"],
+    "美術室": ["art"], "美术室": ["art"], "藝術室": ["art"], "艺术室": ["art"],
+    "影音室": ["audio-visual", "karaoke"], "視聽室": ["audio-visual"],
+    "唱K": ["karaoke"], "唱k": ["karaoke"],
+    "茶水間": ["pantry"], "茶水间": ["pantry"], "廚房": ["pantry", "kitchen"], "厨房": ["pantry", "kitchen"],
+    "預約": ["reserve", "booking"], "预约": ["reserve", "booking"],
+    "申請": ["apply", "application"], "申请": ["apply", "application"],
+    "開放時間": ["open", "hours"], "开放时间": ["open", "hours"],
+    "洗衣房": ["laundry"], "健身房": ["gym", "fitness"], "自習室": ["study"],
 }
 
 # 这些词组在任何条款里都有，拿它们算相关等于没算
@@ -281,9 +291,10 @@ def related_chunks(question: str, answer: str = "", limit: int = 3, min_score: f
     with connect() as conn:
         conn.row_factory = sqlite3.Row
         rows = [dict(r) for r in conn.execute(
-            "SELECT id, anchor, version, text, source, url FROM chunk WHERE status='published'").fetchall()]
+            "SELECT id, anchor, version, text, source, url, title, section FROM chunk WHERE status='published'").fetchall()]
     # 去掉「到处都是」的词：某词若在超过 12% 的条款里出现，它对区分没有帮助
-    corpus = [_tokens(r["text"]) for r in rows]
+    corpus = [_tokens((r["text"] or "") + " " + (r.get("title") or "") + " " + (r.get("section") or ""))
+              for r in rows]
     df: dict[str, int] = {}
     for toks in corpus:
         for w in toks:
