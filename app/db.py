@@ -31,6 +31,7 @@ CREATE TABLE IF NOT EXISTS kb_item (
     valid_until TEXT,              -- 失效日期（可空）
     warnings    TEXT,              -- JSON 数组：自动检查发现的问题
     original_answer TEXT,          -- 导入时的原文，供审核对照；之后不再改
+    source_anchor TEXT,            -- 绑定的规章条款号，如 3.2
     created_at  TEXT NOT NULL
 );
 
@@ -44,7 +45,10 @@ CREATE TABLE IF NOT EXISTS chunk (
     updated_at TEXT,
     anchor     TEXT,              -- 条款号，如 4.2
     version    TEXT,              -- 规章版本，如 AY2026-2027
-    source     TEXT               -- 来源说明（文件名 + 哈希）
+    source     TEXT,              -- 来源说明（文件名 + 哈希）
+    section    TEXT,              -- 所属章节，用来区分同号条款
+    variant    TEXT,              -- zh / en：同一条款的中英文各存一条
+    hash       TEXT               -- 内容指纹，重复导入据此判重，避免同号条款互相覆盖
 );
 
 -- 问答日志：用来找「答不了的问题」
@@ -105,7 +109,7 @@ APPROVED_FIELDS = {
     "question", "answer", "category", "source", "source_url", "source_type",
     "note", "status", "ttl_type", "audience", "owner", "reviewer",
     "verified_at", "valid_until", "warnings", "locked_until", "version",
-    "needs_recheck",
+    "needs_recheck", "source_anchor", "source_chunk_id",
 }
 
 LOCK_MINUTES = 30
@@ -137,13 +141,17 @@ def _migrate(conn) -> None:
             conn.execute(f"ALTER TABLE kb_item ADD COLUMN {name} {decl}")
 
     kcols = {r[1] for r in conn.execute("PRAGMA table_info(kb_item)").fetchall()}
+    if "source_anchor" not in kcols:
+        conn.execute("ALTER TABLE kb_item ADD COLUMN source_anchor TEXT")
+    if "source_chunk_id" not in kcols:
+        conn.execute("ALTER TABLE kb_item ADD COLUMN source_chunk_id INTEGER")
     if "original_answer" not in kcols:
         conn.execute("ALTER TABLE kb_item ADD COLUMN original_answer TEXT")
         # 老条目：把当前答案当作原文留档，之后审核时能看出改了什么
         conn.execute("UPDATE kb_item SET original_answer = answer WHERE original_answer IS NULL")
 
     ccols = {r[1] for r in conn.execute("PRAGMA table_info(chunk)").fetchall()}
-    for name, decl in (("anchor", "TEXT"), ("version", "TEXT"), ("source", "TEXT")):
+    for name, decl in (("anchor", "TEXT"), ("version", "TEXT"), ("source", "TEXT"), ("section", "TEXT"), ("variant", "TEXT"), ("hash", "TEXT")):
         if name not in ccols:
             conn.execute(f"ALTER TABLE chunk ADD COLUMN {name} {decl}")
 
@@ -152,6 +160,62 @@ def _migrate(conn) -> None:
                        ("session_id", "TEXT"), ("n_cites", "INTEGER")):
         if name not in qcols:
             conn.execute(f"ALTER TABLE qa_log ADD COLUMN {name} {decl}")
+
+
+def list_clauses(limit: int = 500) -> list[dict]:
+    """所有已入库的规章条款，供审核端下拉选择绑定。"""
+    with connect() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT id, anchor, version, text, source, section FROM chunk WHERE status='published'"
+            " ORDER BY id LIMIT ?", (limit,)).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d["preview"] = (d["text"] or "")[:80]
+        d.pop("text", None)
+        out.append(d)
+    return out
+
+
+def get_clause(anchor: str, version: str = "") -> dict | None:
+    """按条款号取原文；同一号有中英两条时全部返回。"""
+    if not anchor:
+        return None
+    with connect() as conn:
+        conn.row_factory = sqlite3.Row
+        sql = "SELECT anchor, version, text, source FROM chunk WHERE anchor = ? AND status='published'"
+        args = [anchor]
+        if version:
+            sql += " AND version = ?"
+            args.append(version)
+        rows = [dict(r) for r in conn.execute(sql, tuple(args)).fetchall()]
+    return rows[0] if rows else None
+
+
+def get_clause_by_id(chunk_id: int) -> dict | None:
+    """精确绑定：直接指向一条原文，不受同号条款干扰。"""
+    if not chunk_id:
+        return None
+    with connect() as conn:
+        conn.row_factory = sqlite3.Row
+        row = conn.execute(
+            "SELECT id, anchor, version, text, source, section FROM chunk WHERE id = ?",
+            (chunk_id,)).fetchone()
+    return dict(row) if row else None
+
+
+def get_clauses(anchor: str, version: str = "") -> list[dict]:
+    if not anchor:
+        return []
+    with connect() as conn:
+        conn.row_factory = sqlite3.Row
+        sql = "SELECT anchor, version, text, source FROM chunk WHERE anchor = ? AND status='published'"
+        args = [anchor]
+        if version:
+            sql += " AND version = ?"
+            args.append(version)
+        return [dict(r) for r in conn.execute(sql, tuple(args)).fetchall()]
 
 
 def find_chunk(url: str) -> dict | None:

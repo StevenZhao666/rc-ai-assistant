@@ -98,9 +98,54 @@ def item(item_id: int, request: Request) -> dict:
     it = db.get_item(item_id)
     if not it:
         raise HTTPException(404, "条目不存在")
+    bound = [b for b in [db.get_clause_by_id(it.get("source_chunk_id") or 0)] if b]
+    if not bound and it.get("source_anchor"):
+        # 兼容早期只存条款号的绑定
+        bound = db.get_clauses(it["source_anchor"])[:1]
     return {"item": it, "history": db.item_history(item_id),
             "original_chunk": db.find_chunk(it.get("source_url") or ""),
-            "related": db.related_chunks(it.get("question") or "", it.get("answer") or "", limit=3)}
+            "bound": bound,
+            "related": [] if bound else db.related_chunks(
+                it.get("question") or "", it.get("answer") or "", limit=3)}
+
+
+@router.get("/api/review/clauses")
+def clauses(request: Request) -> dict:
+    _reviewer(request)
+    return {"items": db.list_clauses()}
+
+
+class BindIn(BaseModel):
+    anchor: str = ""
+    chunk_id: int | None = None
+
+
+@router.post("/api/review/item/{item_id}/bind")
+def bind(item_id: int, body: BindIn, request: Request) -> dict:
+    who = _reviewer(request)
+    it = db.get_item(item_id)
+    if not it:
+        raise HTTPException(404, "条目不存在")
+    patch: dict = {"source_anchor": None, "source_chunk_id": None}
+    note = "解除条款绑定"
+    if body.chunk_id:
+        clause = db.get_clause_by_id(int(body.chunk_id))
+        if not clause:
+            raise HTTPException(400, "找不到这条原文")
+        patch = {"source_anchor": clause["anchor"], "source_chunk_id": clause["id"]}
+        note = f"绑定第 {clause['anchor']} 条（{clause.get('section') or ''}）"
+    elif body.anchor:
+        rows = db.get_clauses(body.anchor.strip())
+        if not rows:
+            raise HTTPException(400, f"没有第 {body.anchor} 条，检查条款号")
+        patch = {"source_anchor": rows[0]["anchor"], "source_chunk_id": rows[0]["id"]}
+        note = f"绑定第 {rows[0]['anchor']} 条"
+    db.update_item(item_id, patch)
+    db.log_review(item_id, "bind", who, note,
+                  before=f"chunk={it.get('source_chunk_id') or ''}",
+                  after=f"chunk={patch.get('source_chunk_id') or ''}")
+    _reload()
+    return {"ok": True, "item": db.get_item(item_id)}
 
 
 @router.post("/api/review/item/{item_id}/claim")

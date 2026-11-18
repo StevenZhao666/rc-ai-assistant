@@ -37,6 +37,10 @@ def clean_lines(page_text: str) -> list[str]:
     return out
 
 
+def variant_of(text: str) -> str:
+    return "zh" if any("一" <= ch <= "鿿" for ch in text) else "en"
+
+
 def parse(pdf_path: Path) -> list[dict]:
     doc = pymupdf.open(pdf_path)
     clauses: list[dict] = []
@@ -47,6 +51,7 @@ def parse(pdf_path: Path) -> list[dict]:
         nonlocal current
         if current and current["text"].strip():
             current["text"] = current["text"].strip()
+            current["variant"] = variant_of(current["text"])
             clauses.append(current)
         current = None
 
@@ -76,6 +81,7 @@ def main() -> None:
     ap.add_argument("--version", default="", help="例如 AY2026-2027")
     ap.add_argument("--source", default="", help="例如 CKLC Student Handbook")
     ap.add_argument("--url", default="", help="官方页面链接（可空）")
+    ap.add_argument("--replace", action="store_true", help="先删掉同一来源+版本的旧条款，再导入")
     args = ap.parse_args()
 
     path = Path(args.pdf)
@@ -92,30 +98,35 @@ def main() -> None:
     version = args.version or datetime.now().strftime("%Y-%m-%d")
     now = datetime.now().isoformat(timespec="seconds")
 
-    added = updated = 0
+    added = updated = deleted = 0
     with db.connect(write=True) as conn:
+        if args.replace:
+            deleted = conn.execute("DELETE FROM chunk WHERE title=? AND version=?",
+                                   (title, version)).rowcount
         for c in clauses:
-            row = conn.execute(
-                "SELECT id FROM chunk WHERE source=? AND version=? AND anchor=?",
-                (title, version, c["anchor"])).fetchone()
             text = c["text"]
             if len(text) < 8:
                 continue
+            h = hashlib.sha1(f"{c.get('section','')}|{c['anchor']}|{c.get('variant','')}|{text}".encode()).hexdigest()[:16]
+            row = conn.execute(
+                "SELECT id FROM chunk WHERE title=? AND version=? AND hash=?",
+                (title, version, h)).fetchone()
             if row:
                 conn.execute("UPDATE chunk SET text=?, updated_at=? WHERE id=?",
                              (text, now, row[0]))
                 updated += 1
             else:
                 conn.execute(
-                    "INSERT INTO chunk (url, title, text, status, updated_at, anchor, version, source)"
-                    " VALUES (?,?,?,?,?,?,?,?)",
-                    (args.url, title, text, "published", now, c["anchor"], version, f"{title} · {version} ({digest})"))
+                    "INSERT INTO chunk (url, title, text, status, updated_at, anchor, version, source,"
+                    " section, variant, hash) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+                    (args.url, title, text, "published", now, c["anchor"], version,
+                     f"{title} · {version} ({digest})", c.get("section") or "", c.get("variant") or "", h))
                 added += 1
         conn.commit()
         total = conn.execute("SELECT COUNT(*) FROM chunk").fetchone()[0]
 
     print(f"文件：{path.name}（{path.stat().st_size // 1024} KB）")
-    print(f"切出条款：{len(clauses)} 条（新增 {added} / 更新 {updated}）")
+    print(f"切出条款：{len(clauses)} 条（删除旧 {deleted} / 新增 {added} / 更新 {updated}）")
     print(f"chunk 表共 {total} 条")
     for c in clauses[:3]:
         print(f"  [{c['anchor']}] {c['text'][:60]}")

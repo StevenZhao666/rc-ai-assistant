@@ -68,6 +68,12 @@
           padding:7px 9px;margin:6px 0;background:#fff}
   .clauseHead{font-size:12px;margin-bottom:3px}
   .clauseText{font-size:12.5px;line-height:1.6;white-space:pre-wrap;color:var(--ink)}
+  .clause.bound{border-left-color:#1c7c54;background:#f7fbf8}
+  .mini{border:1px solid var(--line);background:#fff;color:var(--red);border-radius:6px;
+        padding:2px 8px;font-size:11.5px;cursor:pointer;margin-left:8px}
+  .mini:hover{background:#fff1f0}
+  .bindRow{display:flex;gap:8px;margin-top:8px}
+  .bindRow select{flex:1;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px}
   .origtext{white-space:pre-wrap;background:#fff;border:1px solid #eee;border-radius:6px;padding:8px 10px;max-height:220px;overflow:auto;font-size:13px;line-height:1.6}
   .hist div{padding:3px 0;border-bottom:1px dotted #eee}
   .empty{padding:26px;text-align:center;color:var(--muted)}
@@ -257,8 +263,35 @@ async function loadQueue(){
 
 const statusName = s => ({review:"待审",draft:"草稿",published:"已发布",archived:"已归档",expired:"已过期"}[s]||s);
 
+async function ensureClauses(){
+  if (S.clauseList) return S.clauseList;
+  const r = await api("api/review/clauses");
+  S.clauseList = r.items || [];
+  return S.clauseList;
+}
+
+async function bindClause(id, chunkId){
+  try{
+    const body = chunkId ? { chunk_id: Number(chunkId) } : { anchor: "" };
+    await api(`/api/review/item/${id}/bind`, { method:"POST", body: JSON.stringify(body) });
+    toast(chunkId ? "已绑定这条原文" : "已解除绑定");
+    openItem(id, S.panel || "#panel");
+  }catch(e){ toast(e.message, true); }
+}
+
+document.addEventListener("click", e => {
+  const b = e.target.closest("[data-bind]");
+  if (b) { bindClause(S.item.id, b.dataset.bind); return; }
+  const u = e.target.closest("[data-unbind]");
+  if (u) { bindClause(S.item.id, ""); return; }
+  if (e.target.id === "bindSel") {
+    const v = document.querySelector("#clauseSel")?.value;
+    if (v) bindClause(S.item.id, v); else toast("先选一条条款", true);
+  }
+});
+
 async function openItem(id, target = "#panel"){
-  S.cur = id;
+  S.cur = id; S.panel = target;
   document.querySelectorAll("#rows tr, #rcRows tr").forEach(tr=>tr.classList.toggle("sel", +tr.dataset.id===id));
   const d = await api("api/review/item/"+id);
   S.item = d.item; S.version = d.item.version || 1;
@@ -275,13 +308,26 @@ async function openItem(id, target = "#panel"){
         <div class="origtext">${it.original_answer ? esc(it.original_answer) : '<span class="hint">这条是手工新建，没有导入原文</span>'}</div>
         ${it.source_url ? `<a class="srclink" href="${esc(it.source_url)}" target="_blank" rel="noopener">来源页面 ↗</a>` : '<div class="hint">没填来源链接</div>'}
         ${d.original_chunk ? `<div class="hint">抓到的页面原文：</div><div class="origtext small">${esc((d.original_chunk.text||"").slice(0,3000))}</div>` : ''}
-        <div class="hint" style="margin-top:10px">规章原文（自动匹配）：</div>
-        ${(d.related && d.related.length) ? d.related.map(c => `
-          <div class="clause">
-            <div class="clauseHead"><b>第 ${esc(c.anchor)} 条</b>
-              <span class="citeMeta">${esc(c.version || "")}${c.score ? " · 匹配度 " + c.score : ""}</span></div>
+        <div class="hint" style="margin-top:10px">规章原文：</div>
+        ${(d.bound && d.bound.length) ? d.bound.map(c => `
+          <div class="clause bound">
+            <div class="clauseHead"><b>已绑定 第 ${esc(c.anchor)} 条</b>
+              <span class="citeMeta">${esc((c.section || "").slice(0, 30))} · ${esc(c.version || "")}</span>
+              <button class="mini" data-unbind="1">解除绑定</button></div>
             <div class="clauseText">${esc(c.text)}</div>
-          </div>`).join("") : '<div class="hint">这份规章里没匹配到相关条款，需要人工判断。</div>'}
+          </div>`).join("")
+        : `
+          ${(d.related && d.related.length) ? d.related.map(c => `
+            <div class="clause">
+              <div class="clauseHead"><b>第 ${esc(c.anchor)} 条</b>
+                <span class="citeMeta">${esc((c.section || "").slice(0, 24))}${c.score ? " · 匹配度 " + c.score : ""}</span>
+                <button class="mini" data-bind="${esc(c.id)}">绑定这条</button></div>
+              <div class="clauseText">${esc(c.text)}</div>
+            </div>`).join("") : '<div class="hint">自动匹配没有结果，请手动选条款。</div>'}
+          <div class="bindRow">
+            <select id="clauseSel"><option value="">手动选择条款…</option></select>
+            <button class="mini" id="bindSel">绑定</button>
+          </div>`}
       </div>
       <div class="side">
         <label>答案条目（可改）</label>
@@ -313,6 +359,15 @@ async function openItem(id, target = "#panel"){
     <div class="hist"><b>操作记录</b>
       ${d.history.length? d.history.map(h=>`<div>${esc(h.ts)} · ${esc(h.reviewer||"—")} · ${actName(h.action)}${h.note?" · "+esc(h.note):""}</div>`).join("") : "<div>还没有人审过</div>"}
     </div>`;
+  const sel = $("#clauseSel");
+  if (sel) {
+    ensureClauses().then(list => {
+      sel.innerHTML = '<option value="">手动选择条款…</option>' + list.map(c =>
+        `<option value="${esc(c.id)}">第 ${esc(c.anchor)} 条 · ${esc((c.section||"").slice(0,16))} · ${esc((c.preview||"").slice(0,30))}</option>`).join("");
+      if (it.source_chunk_id) sel.value = String(it.source_chunk_id);
+    });
+  }
+
   const patch = () => ({ question:$("#eQ").value, answer:$("#eA").value, category:$("#eCat").value,
       ttl_type:$("#eTtl").value, source:$("#eSrc").value, source_url:$("#eUrl").value,
       verified_at:$("#eVer").value, valid_until:$("#eUntil").value });
