@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="zh-Hans">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>昆昆 · 结构图（四层）</title>
+<style>
+  :root{
+    --red:#88070f; --ink:#221d1e; --dim:#6f6864; --line:#e2dbd6;
+    --blue:#1b5fa8; --blue-bg:#eff5fc; --green:#1c7c54; --green-bg:#f0f8f3;
+    --amber:#9a5b00; --amber-bg:#fff7ea; --gray:#f4f1ef;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:#fff;color:var(--ink);
+       font:15px/1.6 -apple-system,"Segoe UI","Microsoft JhengHei","PingFang TC",sans-serif}
+  section.page{max-width:1060px;margin:0 auto;padding:26px 24px 30px;min-height:860px;
+               border-bottom:1px solid #eee}
+  .kicker{font-size:12.5px;letter-spacing:.14em;color:var(--red);font-weight:700}
+  h1{font-size:26px;margin:2px 0 2px}
+  h1 small{font-size:14px;color:var(--dim);font-weight:400;margin-left:8px}
+  .lead{color:var(--dim);font-size:13.5px;margin:0 0 18px}
+
+  .bignum{display:inline-flex;width:26px;height:26px;border-radius:50%;background:var(--red);
+          color:#fff;font-size:13px;align-items:center;justify-content:center;margin-right:8px}
+
+  /* L0 */
+  .band{border:1.5px solid var(--line);border-radius:14px;padding:14px 16px;margin-bottom:0}
+  .band h3{margin:0 0 10px;font-size:13px;letter-spacing:.08em;color:var(--dim);font-weight:600}
+  .cards{display:flex;gap:12px;flex-wrap:wrap}
+  .card{flex:1 1 0;min-width:170px;background:#fff;border:1px solid var(--line);border-radius:10px;
+        padding:12px 14px}
+  .card b{display:block;font-size:16px;margin-bottom:2px}
+  .card span{font-size:12.5px;color:var(--dim)}
+  .card.red{background:#fdf4f3;border-color:#e8c9c6}
+  .card.blue{background:var(--blue-bg);border-color:#cfe0f3}
+  .card.amber{background:var(--amber-bg);border-color:#efdcb6}
+  .card.gray{background:var(--gray)}
+  .card.dash{border-style:dashed;color:var(--dim)}
+  .down{display:flex;justify-content:center;align-items:center;height:34px;color:#b9aea8;font-size:20px}
+  .down span{font-size:12px;color:var(--dim);margin-left:8px}
+
+  /* L1 pipeline */
+  .flow{display:flex;align-items:stretch;gap:8px;flex-wrap:nowrap;margin-top:8px}
+  .node{flex:1;border:1px solid var(--line);border-radius:10px;padding:9px 8px;text-align:center;background:#fff}
+  .node b{display:block;font-size:13px}
+  .node span{font-size:11px;color:var(--dim);line-height:1.35;display:block;margin-top:3px}
+  .node.hot{background:#fdf4f3;border-color:#e8c9c6}
+  .sep{align-self:center;color:#c3b8b1;font-size:15px}
+  .branches{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-top:14px}
+  .branch{border:1px dashed #d8cec8;border-radius:10px;padding:10px 12px;background:#fcfaf9}
+  .branch b{font-size:13.5px;display:block;margin-bottom:2px}
+  .branch span{font-size:12px;color:var(--dim)}
+
+  /* L2 ER */
+  .er{display:grid;grid-template-columns:1fr 120px 1fr;gap:0;align-items:center;margin-top:6px}
+  .tbl{border:1.5px solid var(--line);border-radius:10px;overflow:hidden;background:#fff}
+  .tbl h4{margin:0;padding:8px 12px;font-size:14px;background:var(--gray);border-bottom:1px solid var(--line)}
+  .tbl ul{list-style:none;margin:0;padding:8px 12px;font-size:12.5px;color:var(--dim)}
+  .tbl li{padding:2px 0}
+  .tbl li b{color:var(--ink);font-weight:600}
+  .tbl.src h4{background:var(--blue-bg)}
+  .tbl.log h4{background:var(--amber-bg)}
+  .link{text-align:center;font-size:12px;color:var(--dim)}
+  .link .line{height:1.5px;background:#cfc5be;margin:5px 10px;position:relative}
+  .link .line::after{content:"";position:absolute;right:-1px;top:-4px;border-left:8px solid #cfc5be;
+                     border-top:5px solid transparent;border-bottom:5px solid transparent}
+  .link b{color:var(--red)}
+
+  /* L3 future */
+  .tri{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
+  .tier{border:1.5px dashed #cbbfb8;border-radius:12px;padding:12px 14px;background:#fdfbfa}
+  .tier h4{margin:0 0 6px;font-size:15px}
+  .tier p{margin:0;font-size:12.5px;color:var(--dim)}
+  .tier .new{margin-top:8px;font-size:12px;color:var(--amber)}
+  table.add{width:100%;border-collapse:collapse;margin-top:14px;font-size:12.5px}
+  table.add th,table.add td{border-bottom:1px solid var(--line);padding:6px 8px;text-align:left}
+  table.add th{color:var(--dim);font-weight:600}
+  code{font-family:ui-monospace,Consolas,monospace;background:#f3efec;padding:1px 5px;border-radius:4px;font-size:11.5px}
+  .foot{color:var(--dim);font-size:12px;margin-top:14px}
+
+  @media print {
+    @page { size: A4 portrait; margin: 12mm 12mm 10mm; }
+    body { font-size: 12px; }
+    section.page { max-width: none; min-height: 0; padding: 0; border: 0; page-break-after: always; }
+    section.page:last-of-type { page-break-after: auto; }
+    .card b, .node b { font-size: 13px; }
+    .card span, .node span, .tbl ul, .tier p, table.add { font-size: 10.5px; }
+    h1 { font-size: 20px; }
+    .lead, .foot { font-size: 11px; }
+    .down { height: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ============ L0 全景 ============ -->
+<section class="page" id="l0">
+  <div class="kicker">宏观 · L0</div>
+  <h1>一张图看全 <small>谁在用 → 经过什么 → 资料在哪</small></h1>
+  <p class="lead">实线＝已经在跑；虚线＝设想。</p>
+
+  <div class="band">
+    <h3>使用者</h3>
+    <div class="cards">
+      <div class="card"><b>学生</b><span>手机浏览器 · 繁简英</span></div>
+      <div class="card"><b>审核人</b><span>审批页 · 绑条款、发布</span></div>
+      <div class="card"><b>管理员</b><span>后台 · 流水与成本</span></div>
+      <div class="card dash"><b>外部系统</b><span>别的专案 / 同学的 AI</span></div>
+    </div>
+  </div>
+  <div class="down">↓<span>HTTPS</span></div>
+
+  <div class="band">
+    <h3>服务（一台 2C4G，单进程 FastAPI）</h3>
+    <div class="cards">
+      <div class="card red"><b>/api/ask</b><span>提问：限流 → 意图 → 检索 → 回答 → 溯源</span></div>
+      <div class="card blue"><b>/review</b><span>审批：队列、认领、绑条款、留痕</span></div>
+      <div class="card green"><b>/admin</b><span>后台：8 个面板，只读</span></div>
+    </div>
+  </div>
+  <div class="down">↓</div>
+
+  <div class="band">
+    <h3>核心能力</h3>
+    <div class="cards">
+      <div class="card"><b>检索</b><span>中文二元组 + BM25</span></div>
+      <div class="card"><b>回答</b><span>只依已发布条目 · 句末标 [n]</span></div>
+      <div class="card"><b>溯源</b><span>问答 → 条款 → 原文</span></div>
+      <div class="card"><b>兜底</b><span>实时 / 缺口 / 越界各有出口</span></div>
+    </div>
+  </div>
+  <div class="down">↓</div>
+
+  <div class="band">
+    <h3>资料与外部</h3>
+    <div class="cards">
+      <div class="card amber"><b>SQLite</b><span>6 张表</span></div>
+      <div class="card amber"><b>流水档</b><span>提问 · 用量</span></div>
+      <div class="card"><b>模型</b><span>智谱 3 档 → DeepSeek 兜底</span></div>
+      <div class="card"><b>官方资料</b><span>规章 PDF · 房间规定</span></div>
+    </div>
+  </div>
+  <p class="foot">往下：L1 放大「一次提问」；L2 放大「资料库」；L3 是未来的库。</p>
+</section>
+
+<!-- ============ L1 一次提问 ============ -->
+<section class="page" id="l1">
+  <div class="kicker">微观 · L1</div>
+  <h1><span class="bignum">1</span>一次提问走过的八步</h1>
+  <p class="lead">前面三步是「先判断该不该答」，中间检索生成，最后两步是溯源与记帐。</p>
+
+  <div class="flow">
+    <div class="node"><b>① 认身分</b><span>学号 7 位<br>设备号</span></div>
+    <div class="sep">›</div>
+    <div class="node hot"><b>② 安全</b><span>代写／医疗<br>情绪／安全</span></div>
+    <div class="sep">›</div>
+    <div class="node hot"><b>③ 拦截</b><span>天气／押金<br>门禁</span></div>
+    <div class="sep">›</div>
+    <div class="node"><b>④ 意图</b><span>要不要查<br>资料</span></div>
+    <div class="sep">›</div>
+    <div class="node"><b>⑤ 检索</b><span>繁简归一<br>BM25</span></div>
+    <div class="sep">›</div>
+    <div class="node"><b>⑥ 生成</b><span>只给这几条<br>标 [n]</span></div>
+    <div class="sep">›</div>
+    <div class="node"><b>⑦ 溯源</b><span>只留真引用<br>漏标则兜底</span></div>
+    <div class="sep">›</div>
+    <div class="node"><b>⑧ 记帐</b><span>模式／耗时<br>token</span></div>
+  </div>
+
+  <div class="branches">
+    <div class="branch"><b>不查资料也能答</b><span>打招呼、感谢、问「你是谁」→ 模型直接回，不调检索、不占额度。</span></div>
+    <div class="branch"><b>查了但没有</b><span>直说查不到 → 给具体方向（住宿／设施／流程）或转 G003。</span></div>
+    <div class="branch"><b>不该由机器答</b><span>代写、医疗、情绪、人身安全、跨书院 → 专用话术，不检索。</span></div>
+  </div>
+
+  <p class="foot">L0 ← 全景　　L2 往下：资料库怎么存这些东西</p>
+</section>
+
+<!-- ============ L2 数据库现状 ============ -->
+<section class="page" id="l2">
+  <div class="kicker">微观 · L2</div>
+  <h1><span class="bignum">2</span>资料库：问答与原文分开存</h1>
+  <p class="lead">一条知识＝一条可审核的断言；原文是另一层，只加不改。检索只吃 <code>published</code> 且未过期。</p>
+
+  <div class="er">
+    <div class="tbl">
+      <h4>kb_item　问答层</h4>
+      <ul>
+        <li><b>question / answer</b>　问题与答案</li>
+        <li><b>status</b>　草稿→待审→发布→过期→归档</li>
+        <li><b>ttl_type</b>　A 稳定 / B 年度 / C 实时</li>
+        <li><b>source_url</b>　来源页面</li>
+        <li><b>original_answer</b>　导入时原文</li>
+        <li><b>source_chunk_id</b>　绑定的条款</li>
+      </ul>
+    </div>
+    <div class="link"><b>每条指向</b><div class="line"></div>一条条款</div>
+    <div class="tbl src">
+      <h4>chunk　原文层</h4>
+      <ul>
+        <li><b>anchor</b>　条款号（3.2）</li>
+        <li><b>section</b>　章节（Visitors）</li>
+        <li><b>variant</b>　zh / en</li>
+        <li><b>version</b>　AY2026-2027</li>
+        <li><b>hash</b>　内容指纹，重导不重复</li>
+        <li><b>text</b>　条款正文</li>
+      </ul>
+    </div>
+  </div>
+
+  <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:16px">
+    <div class="tbl log"><h4>qa_log</h4><ul><li>谁、问什么、答什么</li><li><b>mode</b> 模式</li><li><b>latency_ms</b> 耗时</li><li><b>n_cites</b> 引用数</li></ul></div>
+    <div class="tbl log"><h4>feedback</h4><ul><li>👍 / 👎</li><li><b>note</b> 用户写的原因</li><li><b>mode</b> 当时模式</li></ul></div>
+    <div class="tbl log"><h4>review_log</h4><ul><li>谁、何时、做了什么</li><li><b>action</b> approve/bind…</li><li><b>before / after</b></li></ul></div>
+    <div class="tbl log"><h4>candidate</h4><ul><li>官网抓来的候选</li><li><b>status</b> 待处理</li><li><b>item_id</b> 转正后</li></ul></div>
+  </div>
+
+  <p class="foot">右边四张是「行为记录」，只追加不修改。L1 ← 请求流程　　L3 往下：未来要长成什么样</p>
+</section>
+
+<!-- ============ L3 未来 ============ -->
+<section class="page" id="l3">
+  <div class="kicker">设想 · L3</div>
+  <h1><span class="bignum">3</span>如果做成书院资料库</h1>
+  <p class="lead">不只服务昆昆，还要给别的专案、同学的 AI 用。关键是分层与版本。</p>
+
+  <div class="tri">
+    <div class="tier"><h4>① 原文层</h4><p>规章、通知、手册。带版本、生效与废止日期，只加不改，任何历史版本可回溯。</p><div class="new">新增：doc · doc_version · clause</div></div>
+    <div class="tier"><h4>② 知识层</h4><p>问答、术语表、常见误解。每条指向原文层的一段，可审核、可撤回。</p><div class="new">新增：kb_item_ref · glossary</div></div>
+    <div class="tier"><h4>③ 入口层</h4><p>API / MCP：谁能拿什么、配额多少、每次调用留痕。</p><div class="new">新增：client · api_log</div></div>
+  </div>
+
+  <table class="add">
+    <tr><th style="width:150px">表</th><th>解决什么问题</th></tr>
+    <tr><td><code>doc</code> / <code>doc_version</code></td><td>现在版本资讯散在 chunk 里，答不了「这条何时失效」「学生引的是哪一版」</td></tr>
+    <tr><td><code>clause</code></td><td>把 <code>chunk</code> 兼任的职责拆开：文件 → 版本 → 条款</td></tr>
+    <tr><td><code>kb_item_ref</code></td><td>一条问答可能靠两条条款；现在只能绑一条。还要标「直接规定／解释／参考」</td></tr>
+    <tr><td><code>client</code> / <code>api_log</code></td><td>对外开放必须有身分、配额、审计；出事能追</td></tr>
+    <tr><td><code>glossary</code></td><td>HA、RC、High Table 这类术语，现在只能靠条目凑</td></tr>
+  </table>
+
+  <p class="foot">对外只读介面建议先开四个：<code>search_kb</code>、<code>get_item</code>、<code>get_clause</code>、<code>list_updates</code>。MCP 就是把它们包一层。</p>
+</section>
+
+</body>
+</html>
