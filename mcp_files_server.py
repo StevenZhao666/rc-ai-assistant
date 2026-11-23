@@ -20,6 +20,8 @@ import urllib.request
 from mcp.server.mcpserver import MCPServer
 
 BASE = os.environ.get("RC_AI_BASE", "http://127.0.0.1:8001").rstrip("/")
+# 给用户看的下载地址要用公网前缀；调接口仍走 BASE
+PUBLIC = os.environ.get("MCP_PUBLIC_BASE", BASE).rstrip("/")
 mcp = MCPServer("cklc-files")
 
 
@@ -38,7 +40,7 @@ def search_files(query: str, kind: str = "", limit: int = 10) -> dict:
     d = _get(f"/api/files?q={q}&kind={k}&limit={max(1, min(limit, 50))}")
     if "items" in d:
         for it in d["items"]:
-            it["url"] = BASE + it["url"]
+            it["url"] = PUBLIC + it["url"]
     return d
 
 
@@ -46,7 +48,7 @@ def search_files(query: str, kind: str = "", limit: int = 10) -> dict:
 def get_file(file_id: int) -> dict:
     d = _get(f"/api/files/{int(file_id)}")
     if "item" in d:
-        d["item"]["url"] = BASE + d["item"]["url"]
+        d["item"]["url"] = PUBLIC + d["item"]["url"]
     return d
 
 
