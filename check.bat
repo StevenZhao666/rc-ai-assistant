@@ -10,6 +10,9 @@ echo.
 echo === 文件接口 ===
 .venv\Scripts\python.exe tests	est_files.py
 echo.
+echo === 反扒（会用到假 IP，约 60 次请求） ===
+.venv\Scripts\python.exe tests	est_scrape.py
+echo.
 echo === cklc-files MCP ===
 .venv\Scripts\python.exe tests	est_mcp_files.py
 echo.

@@ -11,7 +11,7 @@ import time
 from collections import deque
 
 from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
@@ -35,6 +35,40 @@ app.include_router(files_router)
 app.mount("/img", StaticFiles(directory=str(config.STATIC_DIR / "img")), name="img")
 config.FILES_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/files", StaticFiles(directory=str(config.FILES_DIR)), name="files")
+
+
+# ── 反扒：公开只读接口按 IP 限速 + 不让搜索引擎索引 ────────────────────────────
+PUBLIC_PATHS = ("/api/library", "/api/search", "/api/files", "/api/qa/", "/api/clause", "/api/updates")
+SCRAPE_LIMIT = int(os.environ.get("SCRAPE_LIMIT_PER_MIN", "60"))
+_scrape_hits: dict[str, deque] = {}
+
+
+def _client_ip(request: Request) -> str:
+    xff = request.headers.get("x-forwarded-for") or ""
+    return (xff.split(",")[0].strip() or (request.client.host if request.client else "?"))
+
+
+@app.middleware("http")
+async def scrape_guard(request: Request, call_next):
+    path = request.url.path
+    if any(path.startswith(p) for p in PUBLIC_PATHS):
+        ip = _client_ip(request)
+        now = time.time()
+        dq = _scrape_hits.setdefault(ip, deque())
+        while dq and now - dq[0] > 60:
+            dq.popleft()
+        if len(dq) >= SCRAPE_LIMIT:
+            return JSONResponse({"detail": "请求太频繁，请一分钟后再试"}, status_code=429,
+                                headers={"Retry-After": "30", "X-Robots-Tag": "noindex"})
+        dq.append(now)
+        if len(_scrape_hits) > 5000:              # 防止字典无限长
+            for k in [k for k, v in _scrape_hits.items() if not v][:1000]:
+                _scrape_hits.pop(k, None)
+    resp = await call_next(request)
+    # 页面与接口都不进搜索引擎
+    resp.headers.setdefault("X-Robots-Tag", "noindex, nofollow")
+    return resp
+
 
 _state: dict = {"retriever": None, "count": 0}
 
