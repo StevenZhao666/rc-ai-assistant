@@ -3,3 +3,4 @@ uvicorn[standard]
 openpyxl
 opencc-python-reimplemented
 python-multipart>=0.0.9
+mcp>=2.3

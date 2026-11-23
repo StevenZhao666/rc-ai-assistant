@@ -23,7 +23,7 @@ HOST = os.environ.get("DEPLOY_HOST", "159.75.225.125")
 USER = os.environ.get("DEPLOY_USER", "root")
 REMOTE = os.environ.get("DEPLOY_PATH", "/opt/rc-ai")
 KEY = Path(os.environ.get("DEPLOY_KEY", Path.home() / ".ssh" / "rc_ai_deploy"))
-INCLUDE = ["app", "scripts", "tests", "docs", "mcp_server.py", "mcp_files_server.py", "ask.py", "requirements.txt"]
+INCLUDE = ["app", "scripts", "tests", "docs", "mcp_server.py", "mcp_files_server.py", "mcp_http.py", "ask.py", "requirements.txt"]
 
 
 def ssh(cmd: str, timeout: int = 300) -> subprocess.CompletedProcess:
