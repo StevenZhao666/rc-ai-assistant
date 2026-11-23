@@ -7,6 +7,13 @@ echo.
 echo === MCP 四个工具 ===
 .venv\Scripts\python.exe tests\test_mcp.py
 echo.
+echo === 内容版本契约 ===
+.venv\Scripts\python.exe tests	est_versions.py
+echo.
+echo === 评测基线（30 条） ===
+set SCRAPE_BYPASS=local-eval
+.venv\Scripts\python.exe scripts\eval_set.py --ask-none
+echo.
 echo === 文件接口 ===
 .venv\Scripts\python.exe tests	est_files.py
 echo.

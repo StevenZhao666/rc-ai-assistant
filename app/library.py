@@ -42,7 +42,8 @@ def qa_one(item_id: int) -> dict:
     with db.connect() as conn:
         conn.row_factory = __import__("sqlite3").Row
         r = conn.execute(
-            "SELECT id, question, answer, category, source, source_url, ttl_type, verified_at"
+            "SELECT id, uid, revision, content_hash, effective_from, question, answer, category,"
+            " source, source_url, ttl_type, verified_at"
             " FROM kb_item WHERE id=? AND status='published'", (item_id,)).fetchone()
     if not r:
         raise HTTPException(404, "没有这一条")

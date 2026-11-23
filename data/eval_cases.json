@@ -1,0 +1,131 @@
+{
+  "note": "评测基线：正常 / 无答案 / 跨来源 / 版本字段。换模型、换检索、改提示词后跑一遍。",
+  "cases": [
+    {
+      "q": "書院能不能養寵物",
+      "expect": "answer"
+    },
+    {
+      "q": "換房間一年幾次",
+      "expect": "answer"
+    },
+    {
+      "q": "洗衣房在哪一層",
+      "expect": "answer"
+    },
+    {
+      "q": "辦公室在哪",
+      "expect": "answer"
+    },
+    {
+      "q": "書院有哪些設施",
+      "expect": "answer"
+    },
+    {
+      "q": "琴房怎麼預約",
+      "expect": "answer"
+    },
+    {
+      "q": "訪客可以過夜嗎",
+      "expect": "answer"
+    },
+    {
+      "q": "房間可以抽菸嗎",
+      "expect": "answer"
+    },
+    {
+      "q": "冰箱可以放房間嗎",
+      "expect": "answer"
+    },
+    {
+      "q": "退宿要什麼手續",
+      "expect": "answer"
+    },
+    {
+      "q": "書院有健身房嗎",
+      "expect": "answer"
+    },
+    {
+      "q": "打印機在哪",
+      "expect": "answer"
+    },
+    {
+      "q": "冷氣壞了找誰",
+      "expect": "none",
+      "note": "知识缺口：维修报修流程没有资料"
+    },
+    {
+      "q": "可以帶朋友進宿舍嗎",
+      "expect": "answer"
+    },
+    {
+      "q": "廚房可以用嗎",
+      "expect": "answer"
+    },
+    {
+      "q": "書院辦公室電話",
+      "expect": "answer"
+    },
+    {
+      "q": "自習室幾點開",
+      "expect": "answer"
+    },
+    {
+      "q": "可以養貓嗎",
+      "expect": "answer"
+    },
+    {
+      "q": "宿舍幾點關門",
+      "expect": "answer"
+    },
+    {
+      "q": "洗衣要多少錢",
+      "expect": "answer"
+    },
+    {
+      "q": "明天會不會下雨",
+      "expect": "none"
+    },
+    {
+      "q": "澳門最好的餐廳是哪家",
+      "expect": "none"
+    },
+    {
+      "q": "帮我写一篇论文",
+      "expect": "none"
+    },
+    {
+      "q": "我這門課能拿A嗎",
+      "expect": "none"
+    },
+    {
+      "q": "比特幣現在多少錢",
+      "expect": "none"
+    },
+    {
+      "q": "書院的历史",
+      "expect": "answer"
+    },
+    {
+      "q": "书院有几个学生",
+      "expect": "answer"
+    },
+    {
+      "q": "G003 是什么",
+      "expect": "answer"
+    },
+    {
+      "q": "怎么申请奖学金",
+      "expect": "answer"
+    },
+    {
+      "q": "书院的四个Be是什么",
+      "expect": "answer"
+    }
+  ],
+  "checks": {
+    "uid_format": "^kb-\\d{4}$",
+    "require_uid": true,
+    "require_revision": true
+  }
+}

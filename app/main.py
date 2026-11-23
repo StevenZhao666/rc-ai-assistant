@@ -42,12 +42,15 @@ PUBLIC_PATHS = ("/api/library", "/api/search", "/api/files", "/api/qa/", "/api/c
                 "/api/updates", "/files/")
 SCRAPE_LIMIT = int(os.environ.get("SCRAPE_LIMIT_PER_MIN", "60"))   # 每分钟补充的令牌数
 SCRAPE_BURST = int(os.environ.get("SCRAPE_BURST", "20"))           # 一次最多攒这么多
+SCRAPE_BYPASS = os.environ.get("SCRAPE_BYPASS", "")                # 内部脚本用，别对外说
 _buckets: dict[str, list] = {}          # ip -> [tokens, last_ts]
 
 
 def _client_ip(request: Request) -> str:
+    # 取最后一跳（我们自己的 Apache 追加的），防止客户端伪造 XFF 绕过限速
     xff = request.headers.get("x-forwarded-for") or ""
-    return (xff.split(",")[0].strip() or (request.client.host if request.client else "?"))
+    parts = [p.strip() for p in xff.split(",") if p.strip()]
+    return (parts[-1] if parts else (request.client.host if request.client else "?"))
 
 
 def _take(ip: str, now: float, cost: float = 1.0) -> bool:
@@ -68,6 +71,8 @@ def _take(ip: str, now: float, cost: float = 1.0) -> bool:
 async def scrape_guard(request: Request, call_next):
     path = request.url.path
     guarded = any(path.startswith(p) for p in PUBLIC_PATHS)
+    if guarded and SCRAPE_BYPASS and request.headers.get("x-scrape-token") == SCRAPE_BYPASS:
+        guarded = False                     # 内部评测脚本放行
     if guarded:
         now = time.time()
         # 搜索更贵：一次算 3 个令牌，避免有人拿它当全库扫描器

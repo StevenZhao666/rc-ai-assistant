@@ -336,8 +336,9 @@ function renderCitations(bubble, cites) {
     const d = document.createElement('div');
     d.className = 'citeItem';
     const head = document.createElement('div');
+    const ver = c.uid ? ` · ${c.uid} v${c.revision || 1}` : '';
     head.innerHTML = `<b>${i + 1}. ${c.source || '—'}</b>`
-      + ` <span class="citeMeta">${c.verified_at ? t('verified') + ' ' + c.verified_at : t('unverified')}</span>`;
+      + ` <span class="citeMeta">${c.verified_at ? t('verified') + ' ' + c.verified_at : t('unverified')}${ver}</span>`;
     d.appendChild(head);
     const q = document.createElement('div');
     q.className = 'citeQ';

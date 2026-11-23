@@ -5,6 +5,7 @@
 - status 状态机：draft → review → published → expired → archived
 - 检索只吃 status='published' 且未过期的条目 —— 审核变成硬约束
 """
+import hashlib
 import json
 import re
 import sqlite3
@@ -184,6 +185,32 @@ def _migrate(conn) -> None:
         # 老条目：把当前答案当作原文留档，之后审核时能看出改了什么
         conn.execute("UPDATE kb_item SET original_answer = answer WHERE original_answer IS NULL")
 
+    # ── 内容版本契约：uid / revision / hash / 生效期 ─────────────────────
+    for table in ("kb_item", "chunk"):
+        tcols = {r[1] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+        for name, decl in (("uid", "TEXT"), ("revision", "INTEGER DEFAULT 1"),
+                           ("content_hash", "TEXT"), ("effective_from", "TEXT"),
+                           ("effective_to", "TEXT"), ("supersedes", "TEXT")):
+            if name not in tcols:
+                conn.execute(f"ALTER TABLE {table} ADD COLUMN {name} {decl}")
+    conn.execute("""CREATE TABLE IF NOT EXISTS kb_revision (
+        uid TEXT, revision INTEGER, content_hash TEXT, question TEXT, answer TEXT,
+        status TEXT, changed_by TEXT, changed_at TEXT, note TEXT,
+        PRIMARY KEY (uid, revision))""")
+    conn.execute("""CREATE TABLE IF NOT EXISTS chunk_revision (
+        uid TEXT, revision INTEGER, content_hash TEXT, text TEXT, anchor TEXT,
+        version TEXT, changed_by TEXT, changed_at TEXT, note TEXT,
+        PRIMARY KEY (uid, revision))""")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_kb_uid ON kb_item(uid)")
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_chunk_uid ON chunk(uid)")
+
+    # 回填：老数据给 uid / revision / hash
+    for table, prefix, textcol in (("kb_item", "kb", "question || char(10) || answer"),
+                                   ("chunk", "chunk", "text")):
+        for r in conn.execute(f"SELECT id, {textcol} AS t FROM {table} WHERE uid IS NULL").fetchall():
+            conn.execute(f"UPDATE {table} SET uid=?, revision=COALESCE(revision,1), content_hash=?"
+                         " WHERE id=?", (f"{prefix}-{int(r['id']):04d}", _hash12(r["t"] or ""), r["id"]))
+
     lib_cols = {r[1] for r in conn.execute("PRAGMA table_info(library_item)").fetchall()}
     if "contact_public" not in lib_cols:
         conn.execute("ALTER TABLE library_item ADD COLUMN contact_public INTEGER DEFAULT 0")
@@ -228,7 +255,8 @@ def get_clause(anchor: str, version: str = "") -> dict | None:
         return None
     with connect() as conn:
         conn.row_factory = sqlite3.Row
-        sql = "SELECT anchor, version, text, source FROM chunk WHERE anchor = ? AND status='published'"
+        sql = ("SELECT uid, revision, content_hash, anchor, version, text, source FROM chunk"
+               " WHERE anchor = ? AND status='published'")
         args = [anchor]
         if version:
             sql += " AND version = ?"
@@ -254,7 +282,8 @@ def get_clauses(anchor: str, version: str = "") -> list[dict]:
         return []
     with connect() as conn:
         conn.row_factory = sqlite3.Row
-        sql = "SELECT anchor, version, text, source FROM chunk WHERE anchor = ? AND status='published'"
+        sql = ("SELECT uid, revision, content_hash, anchor, version, text, source FROM chunk"
+               " WHERE anchor = ? AND status='published'")
         args = [anchor]
         if version:
             sql += " AND version = ?"
@@ -374,9 +403,11 @@ def published_items() -> list[dict]:
         SELECT * FROM kb_item
         WHERE status = 'published'
           AND (valid_until IS NULL OR valid_until = '' OR valid_until >= ?)
+          AND (effective_from IS NULL OR effective_from = '' OR effective_from <= ?)
+          AND (effective_to IS NULL OR effective_to = '' OR effective_to >= ?)
     """
     with connect() as conn:
-        rows = conn.execute(sql, (today,)).fetchall()
+        rows = conn.execute(sql, (today, today, today)).fetchall()
     out = []
     for r in rows:
         d = dict(r)
@@ -498,6 +529,8 @@ def update_item(item_id: int, patch: dict) -> dict | None:
     sets = ", ".join(f"{k} = ?" for k in fields)
     with connect(write=True) as conn:
         conn.execute(f"UPDATE kb_item SET {sets} WHERE id = ?", (*fields.values(), item_id))
+        bump_kb_revision(conn, item_id, changed_by=str(fields.get("reviewer") or ""),
+                         note=str(fields.get("note") or ""))
         conn.commit()
     return get_item(item_id)
 
@@ -514,8 +547,12 @@ def create_item(fields: dict) -> int:
     marks = ", ".join("?" * len(data))
     with connect(write=True) as conn:
         cur = conn.execute(f"INSERT INTO kb_item ({cols}) VALUES ({marks})", tuple(data.values()))
+        new_id = int(cur.lastrowid)
+        conn.execute("UPDATE kb_item SET uid=?, revision=1, content_hash=? WHERE id=?",
+                     (f"kb-{new_id:04d}",
+                      _hash12(f"{data.get('question','')}" + chr(10) + f"{data.get('answer','')}"), new_id))
         conn.commit()
-        return int(cur.lastrowid)
+        return new_id
 
 
 def log_review(item_id: int | None, action: str, reviewer: str, note: str = "",
@@ -639,6 +676,30 @@ def _files_of(ids: list[int]) -> list[dict]:
     return rows
 
 
+def _hash12(text: str) -> str:
+    return hashlib.sha1((text or "").encode("utf-8")).hexdigest()[:12]
+
+
+def bump_kb_revision(conn, item_id: int, changed_by: str = "", note: str = "") -> None:
+    """内容真变了才 +1；旧版写进 kb_revision。"""
+    row = conn.execute("SELECT * FROM kb_item WHERE id=?", (item_id,)).fetchone()
+    if not row:
+        return
+    row = dict(row)
+    new_hash = _hash12(f"{row.get('question','')}" + chr(10) + f"{row.get('answer','')}")
+    if new_hash == (row.get("content_hash") or ""):
+        return
+    rev = int(row.get("revision") or 1)
+    conn.execute(
+        "INSERT OR REPLACE INTO kb_revision (uid, revision, content_hash, question, answer, status,"
+        " changed_by, changed_at, note) VALUES (?,?,?,?,?,?,?,?,?)",
+        (row.get("uid") or f"kb-{item_id:04d}", rev, row.get("content_hash") or "",
+         row.get("question"), row.get("answer"), row.get("status"), changed_by,
+         datetime.now().isoformat(timespec="seconds"), note))
+    conn.execute("UPDATE kb_item SET revision=?, content_hash=? WHERE id=?",
+                 (rev + 1, new_hash, item_id))
+
+
 def _norm(s: str) -> str:
     """繁简统一，用于跨字形匹配。没装 OpenCC 就原样返回。"""
     if _CC is None:
@@ -711,10 +772,11 @@ def search_all(q: str, limit: int = 20) -> list[dict]:
     with connect() as conn:
         conn.row_factory = sqlite3.Row
         for r in conn.execute(
-                "SELECT id, question, answer FROM kb_item WHERE status='published'").fetchall():
+                "SELECT id, uid, revision, question, answer FROM kb_item WHERE status='published'").fetchall():
             sc = _score(f"{r['question']} {r['answer']}", grams)
             if sc:
-                hits.append((sc + 2, {"type": "qa", "id": r["id"], "title": r["question"],
+                hits.append((sc + 2, {"type": "qa", "id": r["id"], "uid": r["uid"],
+                                      "revision": r["revision"] or 1, "title": r["question"],
                                       "summary": (r["answer"] or "")[:160]}))
         for r in conn.execute(
                 "SELECT id, kind, title, note FROM library_item WHERE status='published'").fetchall():

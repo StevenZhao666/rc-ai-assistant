@@ -524,6 +524,10 @@ def citations(hits: list[dict]) -> list[dict]:
     for h in hits:
         out.append({
             "id": h["id"],
+            "uid": h.get("uid") or f"kb-{int(h['id']):04d}",
+            "revision": h.get("revision") or 1,
+            "content_hash": h.get("content_hash") or "",
+            "effective_from": h.get("effective_from") or "",
             "question": h["question"],
             "source": h.get("source") or "书院资料（待补来源）",
             "source_url": h.get("source_url") or "",
