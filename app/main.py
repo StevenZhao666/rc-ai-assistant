@@ -37,10 +37,12 @@ config.FILES_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/files", StaticFiles(directory=str(config.FILES_DIR)), name="files")
 
 
-# ── 反扒：公开只读接口按 IP 限速 + 不让搜索引擎索引 ────────────────────────────
-PUBLIC_PATHS = ("/api/library", "/api/search", "/api/files", "/api/qa/", "/api/clause", "/api/updates")
-SCRAPE_LIMIT = int(os.environ.get("SCRAPE_LIMIT_PER_MIN", "60"))
-_scrape_hits: dict[str, deque] = {}
+# ── 反扒：令牌桶限速（按 IP，分路径）+ 下载限速 + 安全头 ─────────────────────
+PUBLIC_PATHS = ("/api/library", "/api/search", "/api/files", "/api/qa/", "/api/clause",
+                "/api/updates", "/files/")
+SCRAPE_LIMIT = int(os.environ.get("SCRAPE_LIMIT_PER_MIN", "60"))   # 每分钟补充的令牌数
+SCRAPE_BURST = int(os.environ.get("SCRAPE_BURST", "20"))           # 一次最多攒这么多
+_buckets: dict[str, list] = {}          # ip -> [tokens, last_ts]
 
 
 def _client_ip(request: Request) -> str:
@@ -48,25 +50,47 @@ def _client_ip(request: Request) -> str:
     return (xff.split(",")[0].strip() or (request.client.host if request.client else "?"))
 
 
+def _take(ip: str, now: float, cost: float = 1.0) -> bool:
+    """令牌桶：平时按 SCRAPE_LIMIT/60 每秒补，最多攒 SCRAPE_BURST 个。"""
+    b = _buckets.get(ip)
+    if b is None:
+        b = [float(SCRAPE_BURST), now]
+        _buckets[ip] = b
+    tokens = min(float(SCRAPE_BURST), b[0] + (now - b[1]) * (SCRAPE_LIMIT / 60.0))
+    if tokens < cost:
+        b[0], b[1] = tokens, now
+        return False
+    b[0], b[1] = tokens - cost, now
+    return True
+
+
 @app.middleware("http")
 async def scrape_guard(request: Request, call_next):
     path = request.url.path
-    if any(path.startswith(p) for p in PUBLIC_PATHS):
-        ip = _client_ip(request)
+    guarded = any(path.startswith(p) for p in PUBLIC_PATHS)
+    if guarded:
         now = time.time()
-        dq = _scrape_hits.setdefault(ip, deque())
-        while dq and now - dq[0] > 60:
-            dq.popleft()
-        if len(dq) >= SCRAPE_LIMIT:
+        # 搜索更贵：一次算 3 个令牌，避免有人拿它当全库扫描器
+        cost = 3.0 if path.startswith("/api/search") else 1.0
+        if not _take(_client_ip(request), now, cost):
             return JSONResponse({"detail": "请求太频繁，请一分钟后再试"}, status_code=429,
-                                headers={"Retry-After": "30", "X-Robots-Tag": "noindex"})
-        dq.append(now)
-        if len(_scrape_hits) > 5000:              # 防止字典无限长
-            for k in [k for k, v in _scrape_hits.items() if not v][:1000]:
-                _scrape_hits.pop(k, None)
+                                headers={"Retry-After": "30", "X-Robots-Tag": "noindex",
+                                         "Cache-Control": "no-store"})
+        if len(_buckets) > 5000:                       # 防止字典无限长
+            for k in [k for k, v in _buckets.items() if v[0] >= SCRAPE_BURST][:1000]:
+                _buckets.pop(k, None)
+
     resp = await call_next(request)
-    # 页面与接口都不进搜索引擎
+
     resp.headers.setdefault("X-Robots-Tag", "noindex, nofollow")
+    resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+    if request.method == "GET" and guarded:
+        resp.headers.setdefault("Cache-Control", "public, max-age=60")
+    # 用户上传的 svg/html 不当作页面执行
+    low = path.lower()
+    if low.startswith("/files/") and low.endswith((".svg", ".html", ".htm")):
+        resp.headers["Content-Disposition"] = "attachment"
+        resp.headers["Content-Security-Policy"] = "sandbox"
     return resp
 
 

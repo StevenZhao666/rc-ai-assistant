@@ -11,6 +11,7 @@ import urllib.request
 
 BASE = os.environ.get("BASE", "http://127.0.0.1:8001").rstrip("/")
 LIMIT = int(os.environ.get("SCRAPE_LIMIT_PER_MIN", "60"))
+BURST = int(os.environ.get("SCRAPE_BURST", "20"))
 PASS = FAIL = 0
 
 
@@ -42,6 +43,9 @@ def main():
     check("正常请求 200", code == 200, str(code))
     check("带 X-Robots-Tag", "noindex" in (hdr.get("x-robots-tag") or ""), str(hdr.get("x-robots-tag")))
 
+    check("带 nosniff", "nosniff" in (hdr.get("x-content-type-options") or ""), str(hdr.get("x-content-type-options")))
+    check("公开接口可缓存 60s", "max-age=60" in (hdr.get("cache-control") or ""), str(hdr.get("cache-control")))
+
     code, hdr, _ = get("/library")
     body = (get("/library")[2] or b"").decode("utf-8", "ignore")
     check("资料库页 noindex", 'name="robots"' in body and "noindex" in body, "")
@@ -50,12 +54,12 @@ def main():
     # 用独立 X-Forwarded-For 避开真实 IP 的计数
     fake_ip = "10.99.99.99"
     hit429 = None
-    for i in range(LIMIT + 5):
+    for i in range(BURST + LIMIT + 5):
         code, hdr, body = get("/api/library?limit=1", {"X-Forwarded-For": fake_ip})
         if code == 429:
             hit429 = (i + 1, hdr, body)
             break
-    check("超过限额返回 429", hit429 is not None, f"打了 {LIMIT + 5} 次没触发")
+    check("超过限额返回 429", hit429 is not None, f"打了 {BURST + LIMIT + 5} 次没触发")
     if hit429:
         n, hdr, body = hit429
         check("429 带 Retry-After", "retry-after" in hdr, str(hdr))
