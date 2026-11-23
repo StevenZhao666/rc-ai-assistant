@@ -109,6 +109,39 @@ def item(item_id: int, request: Request) -> dict:
                 it.get("question") or "", it.get("answer") or "", limit=3)}
 
 
+@router.get("/api/review/uploads")
+def uploads(request: Request) -> dict:
+    _reviewer(request)
+    return {"items": db.uploads_pending()}
+
+
+class UploadDecideIn(BaseModel):
+    action: str          # approve / reject
+    note: str = ""
+
+
+@router.post("/api/review/uploads/{candidate_id}/decide")
+def upload_decide(candidate_id: int, body: UploadDecideIn, request: Request) -> dict:
+    who = _reviewer(request)
+    if body.action not in ("approve", "reject"):
+        raise HTTPException(400, "action 只能是 approve 或 reject")
+    if body.action == "reject" and not body.note.strip():
+        raise HTTPException(400, "退回要写一句理由")
+    if body.action == "approve":
+        lib_id = db.approve_upload(candidate_id, who, body.note)
+        db.log_review(lib_id, "approve_upload", who, body.note)
+        return {"ok": True, "library_id": lib_id}
+    db.reject_upload(candidate_id, who, body.note)
+    db.log_review(candidate_id, "reject_upload", who, body.note)
+    return {"ok": True}
+
+
+@router.get("/api/library")
+def library(limit: int = 100) -> dict:
+    """公开只读：已经通过的投稿。"""
+    return {"items": db.library_items(limit=limit)}
+
+
 @router.get("/api/review/clauses")
 def clauses(request: Request) -> dict:
     _reviewer(request)

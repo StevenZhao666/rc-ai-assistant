@@ -74,6 +74,11 @@
   .mini:hover{background:#fff1f0}
   .bindRow{display:flex;gap:8px;margin-top:8px}
   .bindRow select{flex:1;min-width:0;padding:6px 8px;border:1px solid var(--line);border-radius:6px;font-size:12.5px}
+  .attach{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}
+  .fileChip{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;
+            padding:6px 10px;background:#fff;text-decoration:none;color:var(--ink);font-size:12.5px}
+  .fileChip b{background:var(--gray);border-radius:4px;padding:2px 6px;font-size:11px;color:var(--dim)}
+  .fileChip i{color:var(--dim);font-style:normal;font-size:11.5px}
   .origtext{white-space:pre-wrap;background:#fff;border:1px solid #eee;border-radius:6px;padding:8px 10px;max-height:220px;overflow:auto;font-size:13px;line-height:1.6}
   .hist div{padding:3px 0;border-bottom:1px dotted #eee}
   .empty{padding:26px;text-align:center;color:var(--muted)}
@@ -106,6 +111,7 @@
   <button data-tab="recheck">待复核 <span class="count" id="cRecheck">0</span></button>
   <button data-tab="new">新资料 <span class="count" id="cCand">0</span></button>
   <button data-tab="gaps">缺口清单</button>
+  <button data-tab="uploads">投稿 <span class="count" id="cUploads">0</span></button>
 </nav>
 
 <main>
@@ -188,6 +194,15 @@
     </div>
   </section>
 
+  <!-- 投稿 -->
+  <section id="tab-uploads" hidden>
+    <div class="bar">
+      <span class="hint">投稿进来先在这里；通过后进「资料库」，与问答分开。</span>
+      <button class="act" id="upRefresh">刷新</button>
+    </div>
+    <div id="upList"></div>
+  </section>
+
   <!-- 缺口 -->
   <section id="tab-gaps" hidden>
     <div class="layout">
@@ -235,12 +250,13 @@ $("#saveWho").onclick = () => { S.who = $("#who").value.trim(); localStorage.set
 // ── tab ──
 document.querySelectorAll("nav button").forEach(b => b.onclick = () => {
   document.querySelectorAll("nav button").forEach(x=>x.classList.toggle("on", x===b));
-  ["queue","recheck","new","gaps"].forEach(t => $("#tab-"+t).hidden = (t !== b.dataset.tab));
+  ["queue","recheck","new","gaps","uploads"].forEach(t => $("#tab-"+t).hidden = (t !== b.dataset.tab));
   S.tab = b.dataset.tab;
   if(S.tab==="queue") loadQueue();
   if(S.tab==="recheck") loadRecheck();
   if(S.tab==="new") loadCands();
   if(S.tab==="gaps") loadGaps();
+  if(S.tab==="uploads") loadUploads();
 });
 
 // ── 队列 ──
@@ -539,6 +555,56 @@ async function loadGaps(){
     ? d.bad.map(b=>`<div>${esc(b.question)}${b.note?"<br><span class='hint'>"+esc(b.note)+"</span>":""}</div>`).join("")
     : "<div>还没有差评</div>";
 }
+
+// ── 投稿 ──
+const KIND_NAME = {work:"院生作品", link:"网站资源", doc:"文件"};
+const fileSize = n => { n = n||0; return n < 1024 ? n+" B" : (n < 1048576 ? (n/1024).toFixed(n<10240?1:0)+" KB" : (n/1048576).toFixed(2)+" MB"); };
+async function loadUploads(){
+  const d = await api("api/review/uploads");
+  $("#cUploads").textContent = d.items.length;
+  $("#upList").innerHTML = d.items.length ? d.items.map(u => `
+    <div class="card" style="margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
+        <div style="min-width:0">
+          <b>#${u.id} · ${esc(KIND_NAME[u.kind]||u.kind)} · ${esc(u.title)}</b>
+          <div class="hint" style="margin-top:3px">作者：${esc(u.author||"未署名")}${u.contact?"　聯絡："+esc(u.contact):""}</div>
+          ${u.text?`<div class="hint" style="margin-top:3px">說明：${esc(u.text)}</div>`:""}
+        </div>
+        <div style="display:flex;gap:8px;flex:none">
+          <button class="act ok" data-ok="${u.id}">通过</button>
+          <button class="act bad" data-rej="${u.id}">退回</button>
+        </div>
+      </div>
+      <div class="attach">
+        ${(u.files||[]).map(f => (f.mime && f.mime.startsWith("image/"))
+          ? `<a href="${esc(f.url)}" target="_blank" rel="noopener" title="${esc(f.orig_name)}">
+               <img src="${esc(f.url)}" alt="${esc(f.orig_name)}" style="max-height:130px;border:1px solid var(--line);border-radius:6px;background:#fff"></a>`
+          : `<a class="fileChip" href="${esc(f.url)}" target="_blank" rel="noopener">
+               <b>${esc((f.orig_name||"").split(".").pop().toUpperCase())}</b>
+               <span>${esc(f.orig_name)}</span><i>${fileSize(f.size_bytes)}</i></a>`).join("")}
+      </div>
+    </div>`).join("") : `<div class="empty">没有待审的投稿</div>`;
+
+  $("#upList").querySelectorAll("[data-ok]").forEach(b => b.onclick = () => decideUpload(b.dataset.ok, "approve"));
+  $("#upList").querySelectorAll("[data-rej]").forEach(b => b.onclick = () => decideUpload(b.dataset.rej, "reject"));
+}
+
+async function decideUpload(id, action){
+  let note = "";
+  if (action === "reject") {
+    const why = prompt("退回理由（必填）", "");
+    if (why === null) return;
+    note = why.trim();
+    if (!note) return toast("退回要写理由", true);
+  }
+  try{
+    await api(`/api/review/uploads/${id}/decide`, { method:"POST", body: JSON.stringify({action, note}) });
+    toast(action === "approve" ? "已通过，进入资料库" : "已退回");
+    loadUploads();
+  }catch(e){ toast(e.message, true); }
+}
+
+$("#upRefresh") && ($("#upRefresh").onclick = () => loadUploads().catch(e=>toast(e.message,true)));
 
 // ── 启动 ──
 (async () => {

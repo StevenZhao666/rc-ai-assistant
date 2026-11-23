@@ -77,6 +77,22 @@ CREATE TABLE IF NOT EXISTS upload_file (
     created_at TEXT
 );
 
+-- 投稿通过后的正式条目（与问答 kb_item 分开，属于「资料库」这摊）
+CREATE TABLE IF NOT EXISTS library_item (
+    id           INTEGER PRIMARY KEY AUTOINCREMENT,
+    candidate_id INTEGER,
+    kind         TEXT,              -- work / link / doc
+    title        TEXT NOT NULL,
+    author       TEXT,
+    contact      TEXT,
+    note         TEXT,
+    file_ids     TEXT,              -- JSON 数组
+    status       TEXT DEFAULT 'published',
+    created_at   TEXT,
+    reviewer     TEXT,
+    reviewed_at  TEXT
+);
+
 -- 用户反馈：👍/👎 + 可选说明。用来筛出要补/要改的条目
 CREATE TABLE IF NOT EXISTS feedback (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -527,6 +543,69 @@ def recent_log(limit: int = 20) -> list[dict]:
         return [dict(r) for r in conn.execute(
             "SELECT id, ts, item_id, action, reviewer, note FROM review_log ORDER BY id DESC LIMIT ?",
             (limit,)).fetchall()]
+
+
+def uploads_pending(limit: int = 100) -> list[dict]:
+    """待审的投稿：候选 + 附件信息。"""
+    import json as _json
+    with connect() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = [dict(r) for r in conn.execute(
+            "SELECT * FROM candidate WHERE source='upload' AND status='pending'"
+            " ORDER BY id DESC LIMIT ?", (limit,)).fetchall()]
+        files = {}
+        for r in rows:
+            ids = _json.loads(r.get("file_ids") or "[]")
+            r["files"] = []
+            for fid in ids:
+                fr = conn.execute("SELECT id, path, orig_name, mime, size_bytes FROM upload_file WHERE id=?",
+                                  (fid,)).fetchone()
+                if fr:
+                    f = dict(fr)
+                    f["url"] = "/files/" + str(f["path"]).split("files/", 1)[-1]
+                    r["files"].append(f)
+    return rows
+
+
+def approve_upload(candidate_id: int, reviewer: str, note: str = "") -> int:
+    """投稿通过：写 library_item，候选标记 approved。"""
+    import json as _json
+    with connect(write=True) as conn:
+        row = conn.execute("SELECT * FROM candidate WHERE id=?", (candidate_id,)).fetchone()
+        if not row:
+            raise ValueError("候选不存在")
+        d = dict(row)
+        now = datetime.now().isoformat(timespec="seconds")
+        cur = conn.execute(
+            "INSERT INTO library_item (candidate_id, kind, title, author, contact, note, file_ids,"
+            " status, created_at, reviewer, reviewed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            (candidate_id, d.get("kind"), d.get("title"), d.get("author"), d.get("contact"),
+             d.get("text"), _json.dumps(_json.loads(d.get("file_ids") or "[]")),
+             "published", now, reviewer, now))
+        lib_id = int(cur.lastrowid)
+        conn.execute("UPDATE candidate SET status='approved', item_id=?, reviewer=?, note=? WHERE id=?",
+                     (lib_id, reviewer, note or d.get("note") or "", candidate_id))
+        conn.commit()
+        return lib_id
+
+
+def reject_upload(candidate_id: int, reviewer: str, note: str = "") -> None:
+    with connect(write=True) as conn:
+        conn.execute("UPDATE candidate SET status='rejected', reviewer=?, note=? WHERE id=?",
+                     (reviewer, note, candidate_id))
+        conn.commit()
+
+
+def library_items(status: str = "published", limit: int = 200) -> list[dict]:
+    import json as _json
+    with connect() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = [dict(r) for r in conn.execute(
+            "SELECT * FROM library_item WHERE status=? ORDER BY id DESC LIMIT ?",
+            (status, limit)).fetchall()]
+    for r in rows:
+        r["file_ids"] = _json.loads(r.get("file_ids") or "[]")
+    return rows
 
 
 def add_upload_candidate(title: str, kind: str, author: str = "", contact: str = "",
