@@ -2,3 +2,4 @@ fastapi
 uvicorn[standard]
 openpyxl
 opencc-python-reimplemented
+python-multipart>=0.0.9
