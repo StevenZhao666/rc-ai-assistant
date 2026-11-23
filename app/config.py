@@ -24,7 +24,7 @@ def _load_dotenv() -> None:
 _load_dotenv()
 
 # 每个书院只改这几行（也可以用环境变量覆盖，见 .env.example）
-COLLEGE_NAME = os.environ.get("COLLEGE_NAME", "张昆仑书院（CKLC）")
+COLLEGE_NAME = os.environ.get("COLLEGE_NAME", "張崑崙书院（CKLC）")
 OFFICE_ROOM = os.environ.get("OFFICE_ROOM", "G 层 G003")
 OFFICE_PHONE = os.environ.get("OFFICE_PHONE", "(+853) 8822 9520")
 OFFICE_EMAIL = os.environ.get("OFFICE_EMAIL", "cklcollege@um.edu.mo")

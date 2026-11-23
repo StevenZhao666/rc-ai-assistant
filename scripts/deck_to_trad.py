@@ -8,12 +8,12 @@ from pathlib import Path
 from opencc import OpenCC
 from pptx import Presentation
 
-KEEP = [("昆昆", "崑崑"), ("昆仑", "崑崙")]
+KEEP = [("崑崑", "崑崑"), ("崑崙", "崑崙")]
 
 
 def conv(text: str, cc: OpenCC) -> str:
     # 吉祥物名字要先保护起来：OpenCC 会把「崑崑」误转成「崑崙」
-    protected = text.replace("崑崑", "@@NAME@@").replace("昆昆", "@@NAME@@")
+    protected = text.replace("崑崑", "@@NAME@@").replace("崑崑", "@@NAME@@")
     out = cc.convert(protected).replace("@@NAME@@", "崑崑")
     for a, b in KEEP:          # 名字不做简化，保留山
         out = out.replace(a, b)

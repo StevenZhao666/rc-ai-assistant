@@ -157,13 +157,13 @@ const T = {
     citeHint: "點開看原文", sourceLink: "原始頁面"
   },
   "zh-Hans": {
-    title: "昆昆 · 张昆仑书院助手",
+    title: "崑崑 · 張崑崙书院助手",
     badge1: "测试版 · 数据未审核",
     badge2: "AI 生成 · 仅供参考",
     whoNone: "未填学号（点此填写）",
     whoHave: "学号：",
     notice: "回答由 AI 根据书院资料自动生成，<b>仅供参考，不代表书院或学校的正式意见</b>，也不能作为决定依据。涉及规定、费用、期限，请以官方最新公告和书院办公室答复为准；紧急情况请拨 <b>999</b>。",
-    welcome: "你好，我是昆昆，张昆仑书院的吉祥物。书院的事都可以问我——规章、设施、房务、办事流程。\n我只根据书院资料回答，答完会告诉你依据哪一条。\n\n注意：我的回答是 AI 自动生成的，仅供参考；遇到规定、费用、期限这类事，请以官方公告为准。",
+    welcome: "你好，我是崑崑，張崑崙书院的吉祥物。书院的事都可以问我——规章、设施、房务、办事流程。\n我只根据书院资料回答，答完会告诉你依据哪一条。\n\n注意：我的回答是 AI 自动生成的，仅供参考；遇到规定、费用、期限这类事，请以官方公告为准。",
     placeholder: "问点什么… 例如：退宿要提前多久预约？",
     send: "发送",
     quick: ["办公室在哪", "怎么换房间", "健身房时间", "能养宠物吗", "问一个资料里没有的"],
@@ -317,7 +317,7 @@ function addMsg(role, text) {
   el.className = 'msg ' + role;
   const face = role === 'user'
     ? `<span>${S.lang === 'en' ? 'You' : '我'}</span>`
-    : `<img src="img/kunkun.jpg" alt="昆昆">`;
+    : `<img src="img/kunkun.jpg" alt="崑崑">`;
   el.innerHTML = `<div class="who">${face}</div><div class="bubble"></div>`;
   el.querySelector('.bubble').textContent = text;
   log.appendChild(el);

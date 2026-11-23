@@ -57,8 +57,8 @@ def normalize_script(text: str, lang: str) -> str:
     """把回答统一成提问的语言字形。
 
     模型（尤其关了思考的小模型）常把繁问简答、或把简体原文整段抄进繁体回答。
-    这里用 OpenCC 兜一层：繁体→s2t（会把「张昆仑书院」正确转成「張崑崙書院」），
-    简体→t2s；吉祥物名字单独校正成「崑崑」/「昆昆」。
+    这里用 OpenCC 兜一层：繁体→s2t（会把「張崑崙书院」正确转成「張崑崙書院」），
+    简体→t2s；吉祥物名字单独校正成「崑崑」/「崑崑」。
     """
     if not text or lang not in ("zh-Hans", "zh-Hant"):
         return text
@@ -68,8 +68,8 @@ def normalize_script(text: str, lang: str) -> str:
     except Exception:  # noqa: BLE001  没装 opencc 就只做名字替换
         pass
     if lang == "zh-Hant":
-        return text.replace("昆昆", "崑崑")
-    return text.replace("崑崑", "昆昆")
+        return text.replace("崑崑", "崑崑")
+    return text.replace("崑崑", "崑崑")
 
 
 def office_line(lang: str) -> str:
@@ -110,7 +110,7 @@ def meta_identity(lang: str) -> str:
         return "I am Kunkun, the mascot of Cheong Kun Lun College. Ask me about rooms, facilities, hall rules or forms. What do you need?"
     if lang == "zh-Hant":
         return "我係崑崑，張崑崙書院嘅吉祥物。房務、設施、院規、辦事流程都可以問我，你想查邊樣？"
-    return "我是昆昆，张昆仑书院的吉祥物。房务、设施、院规、办事流程都可以问我，你想查哪件？"
+    return "我是崑崑，張崑崙书院的吉祥物。房务、设施、院规、办事流程都可以问我，你想查哪件？"
 
 
 def smalltalk(lang: str) -> str:
@@ -119,7 +119,7 @@ def smalltalk(lang: str) -> str:
         return "Hi! I am Kunkun. What would you like to know about the college — rooms, facilities, rules or procedures?"
     if lang == "zh-Hant":
         return "你好！我是崑崑。想問書院哪方面的事？住宿、設施、規章、辦事流程都可以。"
-    return "你好！我是昆昆。想问书院哪方面的事？住宿、设施、规章、办事流程都可以。"
+    return "你好！我是崑崑。想问书院哪方面的事？住宿、设施、规章、办事流程都可以。"
 
 
 def thanks_reply(lang: str) -> str:
@@ -198,7 +198,7 @@ def out_of_scope(lang: str) -> str:
     if lang == "zh-Hant":
         return ("我只收錄了張崑崙書院（CKLC）的資料，其他書院的規定可能不一樣，不能拿本院的答案套過去。\n"
                 "建議查看澳大書院系統總站：https://rc.um.edu.mo/")
-    return ("我只收录了张昆仑书院（CKLC）的资料，其他书院的规定可能不一样，不能拿本院的答案套过去。\n"
+    return ("我只收录了張崑崙书院（CKLC）的资料，其他书院的规定可能不一样，不能拿本院的答案套过去。\n"
             "建议查看澳大书院系统总站：https://rc.um.edu.mo/")
 
 
