@@ -118,11 +118,11 @@ dsh exec "換房間一年能申請幾次？"
 
 ## 四、为什么不用 MCP
 
-dsh 已经支持 `dsh mcp add`，我们四个只读工具也注册成功了（`dsh mcp list` 能看到 `[on] shuyuan`），但**会话里拿不到这些工具**——`session/new` 和 MCP 工具注册有竞态，失败还是静默的。
+dsh 已经支持 `dsh mcp add`，我们四个只读工具也注册成功了（`dsh mcp list` 能看到 `[on] cklc`），但**会话里拿不到这些工具**——`session/new` 和 MCP 工具注册有竞态，失败还是静默的。
 
 上游记录：[deepseek-ai/deepseek-harness#2273](https://github.com/deepseek-ai/deepseek-harness/discussions/2273)（另见 #1240 / #1239 / #1241）。
 
-所以现在走 `ask.bat` 这条路：稳定、可验证、不依赖 dsh 的 MCP 实现。等上游修了，`mcp.toml` 里那条 `shuyuan` 直接能用，不用再改。
+所以现在走 `ask.bat` 这条路：稳定、可验证、不依赖 dsh 的 MCP 实现。等上游修了，`mcp.toml` 里那条 `cklc` 直接能用，不用再改。
 
 ---
 

@@ -4,6 +4,19 @@
 
 服务端只有一个文件：`mcp_server.py`，它调用本机的只读 API（`/api/search`、`/api/library`、`/api/clause`、`/api/updates`）。
 
+
+## 命名约定
+
+每个 MCP 服务一个名字，统一 `cklc` 打头：
+
+| 名字 | 管什么 | 工具前缀 |
+|---|---|---|
+| `cklc` | 问答库 + 资料库 + 规章条款 | `mcp_cklc_*` |
+| `cklc-files`（计划） | 上传的文件、手册 PDF、讲义 | `mcp_cklc_files_*` |
+| `cklc-people`（可选） | 书院办公室、联系人（只读公开信息） | `mcp_cklc_people_*` |
+
+新做一个就照这个格式起名，别用 `shuyuan`、`kunkun` 之类的别名，工具名会跟着乱。
+
 ## 四个工具
 
 | 工具 | 用途 | 例子 |
@@ -21,7 +34,7 @@
 ```json
 {
   "mcpServers": {
-    "shuyuan": {
+    "cklc": {
       "command": "D:\\Projects\\rc-ai-assistant\\.venv\\Scripts\\python.exe",
       "args": ["D:\\Projects\\rc-ai-assistant\\mcp_server.py"],
       "env": { "RC_AI_BASE": "http://127.0.0.1:8001" }

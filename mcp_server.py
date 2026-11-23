@@ -21,7 +21,7 @@ import urllib.request
 from mcp.server.mcpserver import MCPServer
 
 BASE = os.environ.get("RC_AI_BASE", "http://127.0.0.1:8001").rstrip("/")
-mcp = MCPServer("shuyuan-library")
+mcp = MCPServer("cklc")
 
 
 def _get(path: str) -> dict:
