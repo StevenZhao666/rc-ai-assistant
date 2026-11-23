@@ -72,3 +72,10 @@ REVIEWERS = {x.strip() for x in os.environ.get("REVIEWERS", "").split(",") if x.
 
 # 管理员名单（能看数据看板、能看完整学号）。留空 = 与 REVIEWERS 相同
 ADMINS = {x.strip() for x in os.environ.get("ADMINS", "").split(",") if x.strip()}
+
+
+# ── 投稿（/upload）───────────────────────────────
+UPLOAD_CODE = os.environ.get("UPLOAD_CODE", "")          # 留空 = 关闭投稿
+UPLOAD_MAX_MB = int(os.environ.get("UPLOAD_MAX_MB", "20"))
+UPLOAD_MAX_FILES = int(os.environ.get("UPLOAD_MAX_FILES", "3"))
+FILES_DIR = DATA_DIR / "files"

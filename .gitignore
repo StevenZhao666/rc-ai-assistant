@@ -25,3 +25,5 @@ data/demo/
 docs/_internal/
 data/*.pdf
 deliverables/
+data/files/
+data/upload.log

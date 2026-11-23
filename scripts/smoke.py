@@ -65,7 +65,7 @@ def main() -> None:
     code, d = req("/health")
     check("健康检查 200 且 ok=true", code == 200 and isinstance(d, dict) and d.get("ok"), f"{code} {d}")
 
-    for path, word in (("/", "崑崑"), ("/review", "审批"), ("/admin", "数据后台")):
+    for path, word in (("/", "崑崑"), ("/review", "审批"), ("/admin", "数据后台"), ("/upload", "投稿")):
         code, body = req(path)
         text = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
         check(f"页面 {path} 可打开且含关键词", code == 200 and word in text, f"{code}")
@@ -81,6 +81,12 @@ def main() -> None:
 
     d = post_ask("押金多少")
     check("已知缺口走 fallback", str(d.get("mode", "")).startswith("fallback"), str(d.get("mode")))
+
+    # 2.5 投稿通道
+    code, info = req("/api/upload/info")
+    check("投稿信息可读", code == 200 and isinstance(info, dict) and "open" in info, str(code))
+    code, _ = req("/api/upload", "POST", {})
+    check("投稿接口拒绝空提交", code in (400, 403, 415, 422, 503), str(code))
 
     # 3. 鉴权
     code, _ = req("/api/admin/overview")

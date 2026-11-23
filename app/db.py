@@ -66,6 +66,17 @@ CREATE TABLE IF NOT EXISTS qa_log (
     n_cites    INTEGER            -- 引用了几个来源
 );
 
+-- 投稿文件：只存路径与指纹，不存二进制
+CREATE TABLE IF NOT EXISTS upload_file (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    sha256     TEXT NOT NULL,
+    path       TEXT NOT NULL,
+    orig_name  TEXT,
+    mime       TEXT,
+    size_bytes INTEGER,
+    created_at TEXT
+);
+
 -- 用户反馈：👍/👎 + 可选说明。用来筛出要补/要改的条目
 CREATE TABLE IF NOT EXISTS feedback (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -149,6 +160,12 @@ def _migrate(conn) -> None:
         conn.execute("ALTER TABLE kb_item ADD COLUMN original_answer TEXT")
         # 老条目：把当前答案当作原文留档，之后审核时能看出改了什么
         conn.execute("UPDATE kb_item SET original_answer = answer WHERE original_answer IS NULL")
+
+    cand_cols = {r[1] for r in conn.execute("PRAGMA table_info(candidate)").fetchall()}
+    for name, decl in (("kind", "TEXT"), ("author", "TEXT"), ("contact", "TEXT"),
+                       ("file_ids", "TEXT"), ("ip", "TEXT")):
+        if name not in cand_cols:
+            conn.execute(f"ALTER TABLE candidate ADD COLUMN {name} {decl}")
 
     ccols = {r[1] for r in conn.execute("PRAGMA table_info(chunk)").fetchall()}
     for name, decl in (("anchor", "TEXT"), ("version", "TEXT"), ("source", "TEXT"), ("section", "TEXT"), ("variant", "TEXT"), ("hash", "TEXT")):
@@ -510,6 +527,32 @@ def recent_log(limit: int = 20) -> list[dict]:
         return [dict(r) for r in conn.execute(
             "SELECT id, ts, item_id, action, reviewer, note FROM review_log ORDER BY id DESC LIMIT ?",
             (limit,)).fetchall()]
+
+
+def add_upload_candidate(title: str, kind: str, author: str = "", contact: str = "",
+                         note: str = "", file_ids: list[int] | None = None, ip: str = "") -> int:
+    """投稿进来：写候选，等审核。"""
+    import json as _json
+    with connect(write=True) as conn:
+        cur = conn.execute(
+            "INSERT INTO candidate (url, title, text, source, status, created_at, kind, author, contact, file_ids, ip)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            ("", title, note, "upload", "pending", datetime.now().isoformat(timespec="seconds"),
+             kind, author, contact, _json.dumps(file_ids or []), ip))
+        conn.commit()
+        return int(cur.lastrowid)
+
+
+def add_file(sha256: str, path: str, orig_name: str, mime: str, size: int) -> int:
+    with connect(write=True) as conn:
+        row = conn.execute("SELECT id FROM upload_file WHERE sha256=?", (sha256,)).fetchone()
+        if row:
+            return int(row[0])
+        cur = conn.execute(
+            "INSERT INTO upload_file (sha256, path, orig_name, mime, size_bytes, created_at) VALUES (?,?,?,?,?,?)",
+            (sha256, path, orig_name, mime, size, datetime.now().isoformat(timespec="seconds")))
+        conn.commit()
+        return int(cur.lastrowid)
 
 
 def add_candidate(url: str, title: str, text: str, source: str = "") -> int:
