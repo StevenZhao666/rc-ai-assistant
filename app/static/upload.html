@@ -49,6 +49,24 @@
   .msg.ok{display:block;background:#f0f8f3;color:var(--ok);border:1px solid #cde6d8}
   .msg.err{display:block;background:#fff4f4;color:var(--err);border:1px solid #eccaca}
   .foot{color:var(--dim);font-size:12px;text-align:center;margin-top:18px}
+  /* 提交成功：卡片升起 + 打勾描边 */
+  .done{display:none;background:#fff;border:1px solid var(--line);border-radius:16px;
+        padding:34px 26px 28px;text-align:center;box-shadow:0 14px 34px rgba(136,7,15,.10)}
+  .done.show{display:block;animation:rise .45s cubic-bezier(.2,.8,.25,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(18px) scale(.98)}to{opacity:1;transform:none}}
+  .done h2{margin:10px 0 4px;font-size:22px;color:var(--ok)}
+  .done .ref{margin:0;color:var(--dim);font-size:14px}
+  .done .ref b{color:var(--ink);font-size:18px;font-variant-numeric:tabular-nums}
+  .doneNote{color:var(--dim);font-size:13px;margin:10px 0 18px}
+  .doneBtns{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+  .doneBtns .btn{width:auto;padding:10px 18px;margin:0;text-decoration:none;display:inline-block}
+  .btn.ghost{background:#fff;color:var(--red);border:1px solid #e3c9c7}
+  .tick{margin:0 auto}
+  .tick-circle{stroke-dasharray:195;stroke-dashoffset:195;animation:draw .55s ease-out .05s forwards}
+  .tick-path{stroke-dasharray:48;stroke-dashoffset:48;animation:draw .38s ease-out .45s forwards}
+  @keyframes draw{to{stroke-dashoffset:0}}
+  form.fade{animation:fade .28s ease forwards}
+  @keyframes fade{to{opacity:0;transform:scale(.985)}}
   .name{font-weight:600}
 </style>
 </head>
@@ -112,6 +130,21 @@
     <div class="msg" id="msg"></div>
   </form>
 
+  <div class="done" id="done" aria-live="polite">
+    <svg class="tick" viewBox="0 0 72 72" width="76" height="76">
+      <circle class="tick-circle" cx="36" cy="36" r="31" fill="none" stroke="#1c7c54" stroke-width="4"/>
+      <path class="tick-path" d="M21 37.5 L31 47.5 L52 26" fill="none" stroke="#1c7c54"
+            stroke-width="5" stroke-linecap="round" stroke-linejoin="round"/>
+    </svg>
+    <h2 data-i18n="doneTitle">已收到</h2>
+    <p class="ref"><span data-i18n="doneRef">編號</span> <b id="refNo">#—</b></p>
+    <p class="doneNote" data-i18n="doneNote">審核通過後會公開；需要修改可以再交一份。</p>
+    <div class="doneBtns">
+      <button class="btn ghost" id="again" type="button" data-i18n="again">再交一份</button>
+      <a class="btn" href="/" data-i18n="askMascot2">去問崑崑 →</a>
+    </div>
+  </div>
+
   <p class="foot" data-i18n="foot">提交不會立即上線；審核通過後才會出現在資料庫。</p>
   <p class="foot"><a href="/" style="color:#88070f" data-i18n="askMascot">有問題可以先問崑崑 →</a></p>
 </main>
@@ -141,7 +174,8 @@ const I18N = {
     errSize: "文件太大，單個上限 20 MB。", errType: "有不支援的文件類型。",
     errRate: "提交太頻繁，請一小時後再試。", errNet: "網路出錯，請稍後重試。",
     foot: "提交不會立即上線；審核通過後才會出現在資料庫。",
-    askMascot: "有問題可以先問崑崑 →",
+    askMascot: "有問題可以先問崑崑 →", askMascot2: "去問崑崑 →",
+    doneTitle: "已收到", doneRef: "編號", doneNote: "審核通過後會公開；需要修改可以再交一份。", again: "再交一份",
     closed: "投稿暫未開放。"
   },
   "zh-Hans": {
@@ -164,7 +198,8 @@ const I18N = {
     errSize: "文件太大，单个上限 20 MB。", errType: "有不支持的文件类型。",
     errRate: "提交太频繁，请一小时后再试。", errNet: "网络出错，请稍后重试。",
     foot: "提交不会立即上线；审核通过后才会出现在数据库。",
-    askMascot: "有问题可以先问崑崑 →",
+    askMascot: "有问题可以先问崑崑 →", askMascot2: "去问崑崑 →",
+    doneTitle: "已收到", doneRef: "编号", doneNote: "审核通过后会公开；需要修改可以再交一份。", again: "再交一份",
     closed: "投稿暂未开放。"
   },
   en: {
@@ -187,7 +222,8 @@ const I18N = {
     errSize: "File too large (20 MB each).", errType: "Unsupported file type.",
     errRate: "Too many submissions, try again later.", errNet: "Network error, please retry.",
     foot: "Nothing goes live immediately; it appears after review.",
-    askMascot: "Questions? Ask 崑崑 →",
+    askMascot: "Questions? Ask 崑崑 →", askMascot2: "Ask 崑崑 →",
+    doneTitle: "Received", doneRef: "Reference", doneNote: "It goes live after review. You can submit an updated copy anytime.", again: "Submit another",
     closed: "Submissions are not open yet."
   }
 };
@@ -214,7 +250,28 @@ function paint() {
 }
 
 document.querySelectorAll(".lang button").forEach((b) => b.onclick = () => {
-  lang = b.dataset.lang; localStorage.setItem(LANG_KEY, lang); paint();
+  lang = b.dataset.lang; localStorage.setItem(LANG_KEY, lang); function showDone(id) {
+  const form = $("#form"), done = $("#done");
+  form.classList.add("fade");
+  setTimeout(() => {
+    form.style.display = "none";
+    form.classList.remove("fade");
+    $("#refNo").textContent = "#" + id;
+    done.classList.add("show");
+    done.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, 260);
+}
+
+$("#again").onclick = () => {
+  const form = $("#form"), done = $("#done");
+  done.classList.remove("show");
+  form.reset(); picked = []; renderFiles();
+  form.style.display = "";
+  msg.className = "msg"; msg.textContent = "";
+  window.scrollTo({ top: 0, behavior: "smooth" });
+};
+
+paint();
 });
 
 /* ── 选文件 ─────────────────────────── */
@@ -223,9 +280,15 @@ const drop = $("#drop"), fileInput = $("#file"), list = $("#files");
 const MAX_MB = 20, MAX_N = 3;
 const OK_EXT = [".pdf", ".png", ".jpg", ".jpeg", ".webp", ".md", ".zip"];
 
+function human(n) {
+  if (n < 1024) return n + " B";
+  if (n < 1048576) return (n / 1024).toFixed(n < 10240 ? 1 : 0) + " KB";
+  return (n / 1048576).toFixed(2) + " MB";
+}
+
 function renderFiles() {
   list.innerHTML = picked.map((f, i) => `
-    <div class="f"><span>${f.name}</span><i>${(f.size / 1048576).toFixed(2)} MB</i>
+    <div class="f"><span>${f.name}</span><i>${human(f.size)}</i>
     <button type="button" data-i="${i}">${t("remove")}</button></div>`).join("");
   list.querySelectorAll("button").forEach((b) => b.onclick = () => {
     picked.splice(+b.dataset.i, 1); renderFiles();
@@ -283,8 +346,7 @@ $("#form").onsubmit = async (e) => {
     const r = await fetch("api/upload", { method: "POST", body: fd });
     const d = await r.json().catch(() => ({}));
     if (r.ok) {
-      show("ok", t("ok")(d.id));
-      $("#form").reset(); picked = []; renderFiles();
+      showDone(d.id);
     } else {
       const map = { 403: "errCode", 400: "errTitle", 413: "errSize", 415: "errType", 429: "errRate", 503: "closed" };
       show("err", t(map[r.status] || "errNet") + (d.detail ? `（${d.detail}）` : ""));
@@ -294,6 +356,27 @@ $("#form").onsubmit = async (e) => {
   } finally {
     btn.disabled = false; btn.textContent = t("send");
   }
+};
+
+function showDone(id) {
+  const form = $("#form"), done = $("#done");
+  form.classList.add("fade");
+  setTimeout(() => {
+    form.style.display = "none";
+    form.classList.remove("fade");
+    $("#refNo").textContent = "#" + id;
+    done.classList.add("show");
+    done.scrollIntoView({ block: "center", behavior: "smooth" });
+  }, 260);
+}
+
+$("#again").onclick = () => {
+  const form = $("#form"), done = $("#done");
+  done.classList.remove("show");
+  form.reset(); picked = []; renderFiles();
+  form.style.display = "";
+  msg.className = "msg"; msg.textContent = "";
+  window.scrollTo({ top: 0, behavior: "smooth" });
 };
 
 paint();
