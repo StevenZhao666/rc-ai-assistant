@@ -228,6 +228,7 @@
 <script>
 const S = { who: localStorage.getItem("rc_reviewer") || "", tab: "queue",
             cur: null, item: null, cats: [], cand: null };
+const SITE = location.pathname.startsWith("/ai") ? "/ai" : "";
 const $ = s => document.querySelector(s);
 const esc = s => (s ?? "").toString().replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 

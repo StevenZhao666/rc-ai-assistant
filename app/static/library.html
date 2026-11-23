@@ -85,6 +85,8 @@ const I18N = {
 const LANG_KEY = "cklc_lib_lang";
 let lang = localStorage.getItem(LANG_KEY) || "zh-Hant";
 const $ = s => document.querySelector(s);
+// 反代在 /ai 下时，/files/... 要补成 /ai/files/...
+const SITE = location.pathname.startsWith("/ai") ? "/ai" : "";
 const t = k => I18N[lang][k];
 const esc = s => (s ?? "").toString().replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 let kind = "", q = "";
@@ -119,8 +121,8 @@ async function load(){
         ${it.contact ? "　·　" + esc(it.contact) : ""}</div>
       ${it.note ? `<div class="note">${esc(it.note)}</div>` : ""}
       <div class="files">${(it.files||[]).map(f => f.mime && f.mime.startsWith("image/")
-        ? `<a href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="${esc(f.orig_name)}"></a>`
-        : `<a class="fileChip" href="${esc(f.url)}" target="_blank" rel="noopener">
+        ? `<a href="${SITE}${esc(f.url)}" target="_blank" rel="noopener"><img src="${SITE}${esc(f.url)}" alt="${esc(f.orig_name)}"></a>`
+        : `<a class="fileChip" href="${SITE}${esc(f.url)}" target="_blank" rel="noopener">
              <b>${esc((f.orig_name||"").split(".").pop().toUpperCase())}</b>${esc(f.orig_name)}
              <span class="meta">${fileSize(f.size_bytes)}</span></a>`).join("")}</div>
     </div>`).join("") : `<div class="empty">${t("empty")}</div>`;
