@@ -5,7 +5,8 @@
 ## 地址
 
 ```
-http://159.75.225.125/ai/mcp
+http://159.75.225.125/ai/mcp          ← 问答/条款/更新（cklc）
+http://159.75.225.125/ai/mcp-files    ← 资料库文件（cklc-files）
 ```
 
 传输方式：**Streamable HTTP**（不是 SSE，不是 stdio）。
@@ -15,11 +16,13 @@ http://159.75.225.125/ai/mcp
 | 工具 | 用途 | 例子 |
 |---|---|---|
 | `search_kb` | 搜问答 + 资料库 | 「書院能不能養寵物」 |
-| `get_item` | 按编号取一条（问答或作品） | `id=9, type=qa` |
+| `get_item` | 按编号取一条（问答或作品） | `item_id=9, type=qa` |
 | `get_clause` | 按条款号取规章原文 | `anchor=3.2` |
 | `list_updates` | 最近改了什么 | `since=2026-11-01` |
 
 返回里带 `uid`（如 `kb-0009`）和 `revision`，可核对是哪一版。
+
+参数名注意：取单条用 **`item_id`**（不是 `id`）。
 
 ## 各客户端怎么填
 
@@ -82,7 +85,8 @@ dsh mcp add-http cklc http://159.75.225.125/ai/mcp
 - 只读，写不了任何东西
 - 无登录，按 IP 限速（每分钟 60 次）
 - 只返回已发布、未过期、在生效期内的内容
-- 文件服务（`cklc-files`）目前只有本地 stdio 版，HTTP 还没放出来
+- 文件服务 `cklc-files` 已开：`/ai/mcp-files`（三个工具：search_files / get_file / list_files）
+- 资料库目前为空：测试条目已全部下架（archived），等真投稿
 
 ## 出问题看哪
 
