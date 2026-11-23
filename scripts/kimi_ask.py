@@ -32,7 +32,7 @@ def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("prompt_file")
     ap.add_argument("--out", default="data/kimi_ask.md")
-    ap.add_argument("--max-tokens", type=int, default=8000)
+    ap.add_argument("--max-tokens", type=int, default=32000)
     a = ap.parse_args()
 
     prompt = pathlib.Path(a.prompt_file).read_text(encoding="utf-8")
@@ -44,8 +44,10 @@ def main() -> int:
 
     out = ROOT / a.out
     out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text("", encoding="utf-8")          # 先建文件，方便看进度
     t0 = time.time()
     chars = 0
+    reasoning = 0
     with urllib.request.urlopen(req, timeout=900) as r, out.open("w", encoding="utf-8") as f:
         for raw in r:
             line = raw.decode("utf-8", "ignore").strip()
@@ -58,12 +60,14 @@ def main() -> int:
                 d = json.loads(data)
             except Exception:
                 continue
-            piece = ((d.get("choices") or [{}])[0].get("delta") or {}).get("content") or ""
+            delta = (d.get("choices") or [{}])[0].get("delta") or {}
+            reasoning += len(delta.get("reasoning_content") or "")
+            piece = delta.get("content") or ""
             if piece:
                 f.write(piece)
                 f.flush()
                 chars += len(piece)
-    print(f"{chars} 字，{time.time() - t0:.0f}s → {out}")
+    print(f"{chars} 字（思考 {reasoning} 字），{time.time() - t0:.0f}s → {out}")
     return 0
 
 
