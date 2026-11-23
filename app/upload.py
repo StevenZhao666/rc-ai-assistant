@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import time
 from collections import defaultdict, deque
 from datetime import datetime
@@ -147,6 +148,11 @@ async def upload(request: Request,
         raise HTTPException(400, "标题太短")
     if kind not in ("work", "link", "doc"):
         raise HTTPException(400, "类型不对")
+    contact = (contact or "").strip()
+    if not contact:
+        raise HTTPException(400, "请填一个电邮地址，审核结果会通知你")
+    if not re.match(r"^[^@\s]+@[^@\s]+\.[A-Za-z]{2,}$", contact):
+        raise HTTPException(400, "电邮格式不对")
     files = [f for f in files if f and f.filename]
     if not files:
         raise HTTPException(400, "至少传一个文件")

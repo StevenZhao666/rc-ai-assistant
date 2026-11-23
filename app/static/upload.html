@@ -107,8 +107,8 @@
     <label data-i18n="noteLabel">說明（可選）</label>
     <textarea id="note" data-i18n-ph="notePh" placeholder="怎麼用、解決什麼問題、需要什麼環境"></textarea>
 
-    <label data-i18n="contactLabel">聯絡方式（可選，公開與否由你決定）</label>
-    <input type="text" id="contact" data-i18n-ph="contactPh" placeholder="電郵或其他，可不填">
+    <label data-i18n="contactLabel">聯絡電郵（必填）</label>
+    <input type="email" id="contact" data-i18n-ph="contactPh" placeholder="name@example.com" required autocomplete="email">
 
     <label data-i18n="filesLabel">文件</label>
     <div class="drop" id="drop">
@@ -160,7 +160,7 @@ const I18N = {
     author: "作者 / 提交人", authorPh: "姓名或稱呼",
     titleLabel: "標題", titlePh: "一句話說清這是什麼",
     noteLabel: "說明（可選）", notePh: "怎麼用、解決什麼問題、需要什麼環境",
-    contactLabel: "聯絡方式（可選，公開與否由你決定）", contactPh: "電郵或其他，可不填",
+    contactLabel: "聯絡電郵（必填）", contactPh: "name@example.com",
     filesLabel: "文件", dropMain: "點擊選擇，或把文件拖到這裡",
     dropSub: `PDF / PNG / JPG / WEBP / MD / ZIP，單個不超過 20 MB，最多 3 個`,
     codeLabel: "邀請碼", codePh: "向書院索取",
@@ -168,7 +168,7 @@ const I18N = {
     send: "提交", sending: "上傳中…", remove: "移除",
     ok: (id) => `已收到，編號 #${id}。審核通過後會公開，謝謝。`,
     errCode: "邀請碼不對。", errConsent: "請先勾選授權聲明。",
-    errTitle: "標題至少要兩個字。", errFiles: "至少選一個文件。",
+    errTitle: "標題至少要兩個字。", errFiles: "至少選一個文件。", errMail: "請填一個有效的電郵。",
     errSize: "文件太大，單個上限 20 MB。", errType: "有不支援的文件類型。",
     errRate: "提交太頻繁，請一小時後再試。", errNet: "網路出錯，請稍後重試。",
     foot: "提交不會立即上線；審核通過後才會出現在資料庫。",
@@ -183,7 +183,7 @@ const I18N = {
     author: "作者 / 提交人", authorPh: "姓名或称呼",
     titleLabel: "标题", titlePh: "一句话说清这是什么",
     noteLabel: "说明（可选）", notePh: "怎么用、解决什么问题、需要什么环境",
-    contactLabel: "联系方式（可选，公开与否由你决定）", contactPh: "邮箱或其他，可不填",
+    contactLabel: "联系邮箱（必填）", contactPh: "name@example.com",
     filesLabel: "文件", dropMain: "点击选择，或把文件拖到这里",
     dropSub: "PDF / PNG / JPG / WEBP / MD / ZIP，单个不超过 20 MB，最多 3 个",
     codeLabel: "邀请码", codePh: "向书院索取",
@@ -191,7 +191,7 @@ const I18N = {
     send: "提交", sending: "上传中…", remove: "移除",
     ok: (id) => `已收到，编号 #${id}。审核通过后会公开，谢谢。`,
     errCode: "邀请码不对。", errConsent: "请先勾选授权声明。",
-    errTitle: "标题至少要两个字。", errFiles: "至少选一个文件。",
+    errTitle: "标题至少要两个字。", errFiles: "至少选一个文件。", errMail: "请填一个有效的邮箱。",
     errSize: "文件太大，单个上限 20 MB。", errType: "有不支持的文件类型。",
     errRate: "提交太频繁，请一小时后再试。", errNet: "网络出错，请稍后重试。",
     foot: "提交不会立即上线；审核通过后才会出现在数据库。",
@@ -206,7 +206,7 @@ const I18N = {
     author: "Author", authorPh: "Your name or handle",
     titleLabel: "Title", titlePh: "One line: what is this?",
     noteLabel: "Description (optional)", notePh: "How to use it, what problem it solves, requirements",
-    contactLabel: "Contact (optional, you decide if public)", contactPh: "Email or other, optional",
+    contactLabel: "Contact email (required)", contactPh: "name@example.com",
     filesLabel: "Files", dropMain: "Click to choose, or drop files here",
     dropSub: "PDF / PNG / JPG / WEBP / MD / ZIP, up to 20 MB each, max 3",
     codeLabel: "Invite code", codePh: "Ask the college",
@@ -214,7 +214,7 @@ const I18N = {
     send: "Submit", sending: "Uploading…", remove: "Remove",
     ok: (id) => `Received, reference #${id}. It will appear once reviewed.`,
     errCode: "Invite code is wrong.", errConsent: "Please tick the consent box.",
-    errTitle: "Title is too short.", errFiles: "Choose at least one file.",
+    errTitle: "Title is too short.", errFiles: "Choose at least one file.", errMail: "Please enter a valid email.",
     errSize: "File too large (20 MB each).", errType: "Unsupported file type.",
     errRate: "Too many submissions, try again later.", errNet: "Network error, please retry.",
     foot: "Nothing goes live immediately; it appears after review.",
@@ -323,6 +323,10 @@ $("#form").onsubmit = async (e) => {
   const title = $("#title").value.trim();
   if (title.length < 2) return show("err", t("errTitle"));
   if (!picked.length) return show("err", t("errFiles"));
+  const mailEl = $("#contact");
+  const mail = mailEl.value.trim();
+  // 交给浏览器自带的 email 校验，避免手写正则出错
+  if (!mail || !mailEl.checkValidity() || !mail.includes(".")) return show("err", t("errMail"));
   if (!$("#consent").checked) return show("err", t("errConsent"));
 
   const fd = new FormData();
@@ -330,7 +334,7 @@ $("#form").onsubmit = async (e) => {
   fd.append("kind", $("#kind").value);
   fd.append("title", title);
   fd.append("author", $("#author").value.trim());
-  fd.append("contact", $("#contact").value.trim());
+  fd.append("contact", mail);
   fd.append("note", $("#note").value.trim());
   fd.append("consent", "1");
   picked.forEach((f) => fd.append("files", f, f.name));

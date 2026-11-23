@@ -65,7 +65,7 @@ def ip():
 
 def ok_fields(**kw):
     base = {"code": CODE, "kind": "work", "title": "測試作品", "author": "測試",
-            "contact": "", "note": "說明", "consent": "1"}
+            "contact": "test@example.com", "note": "說明", "consent": "1"}
     base.update(kw)
     return base
 
@@ -79,6 +79,12 @@ def main():
 
     code, d = post(ok_fields(consent=""), [("files", "a.pdf", b"%PDF-1.4 test")], ip())
     check("没勾授权被拒 400", code == 400, f"{code} {d}")
+
+    code, d = post(ok_fields(contact=""), [("files", "a.pdf", b"%PDF-1.4 test")], ip())
+    check("不填电邮被拒 400", code == 400, f"{code} {d}")
+
+    code, d = post(ok_fields(contact="abc"), [("files", "a.pdf", b"%PDF-1.4 test")], ip())
+    check("电邮格式不对被拒 400", code == 400, f"{code} {d}")
 
     code, d = post(ok_fields(), [("files", "bad.exe", b"MZ\x90\x00")], ip())
     check("exe 被拒 415", code == 415, f"{code} {d}")

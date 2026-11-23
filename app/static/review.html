@@ -607,6 +607,13 @@ async function decideUpload(id, action){
 $("#upRefresh") && ($("#upRefresh").onclick = () => loadUploads().catch(e=>toast(e.message,true)));
 
 // ── 启动 ──
+// 支持 /review?tab=uploads 直接落到某个标签
+(function(){
+  const want = new URLSearchParams(location.search).get("tab");
+  if (!want) return;
+  const btn = [...document.querySelectorAll("nav button")].find(b => b.dataset.tab === want);
+  if (btn) btn.click();
+})();
 (async () => {
   await loadCats().catch(()=>{});
   await loadQueue().catch(e=>{ $("#panel").innerHTML = `<div class="empty">${esc(e.message)}<br>先在右上角填审核人</div>`; });
