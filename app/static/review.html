@@ -567,7 +567,7 @@ async function loadUploads(){
       <div style="display:flex;justify-content:space-between;gap:12px;align-items:flex-start">
         <div style="min-width:0">
           <b>#${u.id} · ${esc(KIND_NAME[u.kind]||u.kind)} · ${esc(u.title)}</b>
-          <div class="hint" style="margin-top:3px">作者：${esc(u.author||"未署名")}${u.contact?"　聯絡："+esc(u.contact):""}</div>
+          <div class="hint" style="margin-top:3px">作者：${esc(u.author||"未署名")}${u.contact?"　聯絡："+esc(u.contact)+(u.contact_public?"（公開）":"（僅內部）"):""}</div>
           ${u.text?`<div class="hint" style="margin-top:3px">說明：${esc(u.text)}</div>`:""}
         </div>
         <div style="display:flex;gap:8px;flex:none">

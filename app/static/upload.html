@@ -109,6 +109,10 @@
 
     <label data-i18n="contactLabel">聯絡電郵（必填）</label>
     <input type="email" id="contact" data-i18n-ph="contactPh" placeholder="name@example.com" required autocomplete="email">
+    <div class="chk" style="margin-top:8px">
+      <input type="checkbox" id="contactPublic">
+      <label for="contactPublic" style="margin:0" data-i18n="contactPublic">同意公開這個電郵（不勾選則只有書院看得到）</label>
+    </div>
 
     <label data-i18n="filesLabel">文件</label>
     <div class="drop" id="drop">
@@ -161,6 +165,7 @@ const I18N = {
     titleLabel: "標題", titlePh: "一句話說清這是什麼",
     noteLabel: "說明（可選）", notePh: "怎麼用、解決什麼問題、需要什麼環境",
     contactLabel: "聯絡電郵（必填）", contactPh: "name@example.com",
+    contactPublic: "同意公開這個電郵（不勾選則只有書院看得到）",
     filesLabel: "文件", dropMain: "點擊選擇，或把文件拖到這裡",
     dropSub: `PDF / PNG / JPG / WEBP / MD / ZIP，單個不超過 20 MB，最多 3 個`,
     codeLabel: "邀請碼", codePh: "向書院索取",
@@ -184,6 +189,7 @@ const I18N = {
     titleLabel: "标题", titlePh: "一句话说清这是什么",
     noteLabel: "说明（可选）", notePh: "怎么用、解决什么问题、需要什么环境",
     contactLabel: "联系邮箱（必填）", contactPh: "name@example.com",
+    contactPublic: "同意公开这个邮箱（不勾选则只有书院看得到）",
     filesLabel: "文件", dropMain: "点击选择，或把文件拖到这里",
     dropSub: "PDF / PNG / JPG / WEBP / MD / ZIP，单个不超过 20 MB，最多 3 个",
     codeLabel: "邀请码", codePh: "向书院索取",
@@ -207,6 +213,7 @@ const I18N = {
     titleLabel: "Title", titlePh: "One line: what is this?",
     noteLabel: "Description (optional)", notePh: "How to use it, what problem it solves, requirements",
     contactLabel: "Contact email (required)", contactPh: "name@example.com",
+    contactPublic: "Show this email publicly (otherwise only the college sees it)",
     filesLabel: "Files", dropMain: "Click to choose, or drop files here",
     dropSub: "PDF / PNG / JPG / WEBP / MD / ZIP, up to 20 MB each, max 3",
     codeLabel: "Invite code", codePh: "Ask the college",
@@ -335,6 +342,7 @@ $("#form").onsubmit = async (e) => {
   fd.append("title", title);
   fd.append("author", $("#author").value.trim());
   fd.append("contact", mail);
+  fd.append("contact_public", $("#contactPublic").checked ? "1" : "0");
   fd.append("note", $("#note").value.trim());
   fd.append("consent", "1");
   picked.forEach((f) => fd.append("files", f, f.name));

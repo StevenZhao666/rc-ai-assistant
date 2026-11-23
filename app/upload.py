@@ -136,6 +136,7 @@ async def upload(request: Request,
                  contact: str = Form(""),
                  note: str = Form(""),
                  consent: str = Form(""),
+                 contact_public: str = Form("0"),
                  files: list[UploadFile] = File(default=[])) -> dict:
     if not config.UPLOAD_CODE:
         raise HTTPException(503, "投稿暂未开放")
@@ -166,7 +167,8 @@ async def upload(request: Request,
     saved = [_save(f) for f in files]
     cand_id = db.add_upload_candidate(
         title=title, kind=kind, author=author.strip(), contact=contact.strip(),
-        note=note.strip(), file_ids=[s["file_id"] for s in saved], ip=ip)
+        note=note.strip(), file_ids=[s["file_id"] for s in saved], ip=ip,
+        contact_public=1 if contact_public in ("1", "true", "on", "yes") else 0)
 
     try:
         with (config.DATA_DIR / "upload.log").open("a", encoding="utf-8") as fh:

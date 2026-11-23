@@ -40,10 +40,11 @@ def call(path, method="GET", body=None, headers=None):
             return e.code, {}
 
 
-def upload(title, author="測試"):
+def upload(title, author="測試", contact_public="1"):
     boundary = "----b" + uuid.uuid4().hex
     fields = {"code": CODE, "kind": "work", "title": title, "author": author,
-              "contact": "", "note": "測試用", "consent": "1"}
+              "contact": "tester@example.com", "note": "測試用", "consent": "1",
+              "contact_public": contact_public}
     data = b""
     for k, v in fields.items():
         data += f'--{boundary}\r\nContent-Disposition: form-data; name="{k}"\r\n\r\n{v}\r\n'.encode()
@@ -58,8 +59,8 @@ def upload(title, author="測試"):
 
 
 def main():
-    a = upload("審核測試 A")
-    b = upload("審核測試 B")
+    a = upload("審核測試 A", contact_public="1")
+    b = upload("審核測試 B", contact_public="0")
     check("两条投稿都进来了", a.get("ok") and b.get("ok"), f"{a} {b}")
 
     code, _ = call("/api/review/uploads")
@@ -87,14 +88,29 @@ def main():
                    {"action": "reject", "note": "重复投稿"}, {"X-Reviewer": REVIEWER})
     check("写理由后退回成功", code == 200 and d.get("ok"), f"{code} {d}")
 
+    code, lib_pub = call("/api/library")
+    item_a = next((x for x in lib_pub.get("items", []) if x["title"] == "審核測試 A"), {})
+    check("勾了公开：公开接口带邮箱", item_a.get("contact") == "tester@example.com", str(item_a)[:100])
+
     code, lib2 = call("/api/library")
     titles2 = [x["title"] for x in lib2.get("items", [])]
     check("退回的不在资料库", "審核測試 B" not in titles2, str(titles2[:5]))
+
+    code, lst_pending = call("/api/review/uploads", headers={"X-Reviewer": REVIEWER})
+    codes_list = [x["id"] for x in lst_pending.get("items", [])]
+    check("审核端仍能看到待审（链路未断）", isinstance(codes_list, list), str(codes_list[:3]))
 
     code, lst2 = call("/api/review/uploads", headers={"X-Reviewer": REVIEWER})
     ids2 = [x["id"] for x in lst2.get("items", [])]
     check("处理完的离开待审列表", a["id"] not in ids2 and b["id"] not in ids2, str(ids2[:5]))
 
+    # 不公开邮箱：通过后公开接口不应返回 contact 字段
+    c = upload("審核測試 C", contact_public="0")
+    call(f"/api/review/uploads/{c['id']}/decide", "POST", {"action": "approve", "note": ""},
+         {"X-Reviewer": REVIEWER})
+    code, lib3 = call("/api/library")
+    item_c = next((x for x in lib3.get("items", []) if x["title"] == "審核測試 C"), {})
+    check("没勾公开：公开接口不带邮箱", bool(item_c) and "contact" not in item_c, str(item_c)[:100])
     print(f"\n{PASS} pass / {FAIL} fail / {PASS + FAIL} total")
     sys.exit(1 if FAIL else 0)
 

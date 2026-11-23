@@ -177,9 +177,13 @@ def _migrate(conn) -> None:
         # 老条目：把当前答案当作原文留档，之后审核时能看出改了什么
         conn.execute("UPDATE kb_item SET original_answer = answer WHERE original_answer IS NULL")
 
+    lib_cols = {r[1] for r in conn.execute("PRAGMA table_info(library_item)").fetchall()}
+    if "contact_public" not in lib_cols:
+        conn.execute("ALTER TABLE library_item ADD COLUMN contact_public INTEGER DEFAULT 0")
+
     cand_cols = {r[1] for r in conn.execute("PRAGMA table_info(candidate)").fetchall()}
     for name, decl in (("kind", "TEXT"), ("author", "TEXT"), ("contact", "TEXT"),
-                       ("file_ids", "TEXT"), ("ip", "TEXT")):
+                       ("file_ids", "TEXT"), ("ip", "TEXT"), ("contact_public", "INTEGER DEFAULT 0")):
         if name not in cand_cols:
             conn.execute(f"ALTER TABLE candidate ADD COLUMN {name} {decl}")
 
@@ -578,10 +582,10 @@ def approve_upload(candidate_id: int, reviewer: str, note: str = "") -> int:
         now = datetime.now().isoformat(timespec="seconds")
         cur = conn.execute(
             "INSERT INTO library_item (candidate_id, kind, title, author, contact, note, file_ids,"
-            " status, created_at, reviewer, reviewed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            " status, contact_public, created_at, reviewer, reviewed_at) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             (candidate_id, d.get("kind"), d.get("title"), d.get("author"), d.get("contact"),
              d.get("text"), _json.dumps(_json.loads(d.get("file_ids") or "[]")),
-             "published", now, reviewer, now))
+             "published", int(d.get("contact_public") or 0), now, reviewer, now))
         lib_id = int(cur.lastrowid)
         conn.execute("UPDATE candidate SET status='approved', item_id=?, reviewer=?, note=? WHERE id=?",
                      (lib_id, reviewer, note or d.get("note") or "", candidate_id))
@@ -605,19 +609,22 @@ def library_items(status: str = "published", limit: int = 200) -> list[dict]:
             (status, limit)).fetchall()]
     for r in rows:
         r["file_ids"] = _json.loads(r.get("file_ids") or "[]")
+        if not int(r.get("contact_public") or 0):
+            r.pop("contact", None)          # 没选公开，就不对外返回邮箱
     return rows
 
 
 def add_upload_candidate(title: str, kind: str, author: str = "", contact: str = "",
-                         note: str = "", file_ids: list[int] | None = None, ip: str = "") -> int:
+                         note: str = "", file_ids: list[int] | None = None, ip: str = "",
+                         contact_public: int = 0) -> int:
     """投稿进来：写候选，等审核。"""
     import json as _json
     with connect(write=True) as conn:
         cur = conn.execute(
-            "INSERT INTO candidate (url, title, text, source, status, created_at, kind, author, contact, file_ids, ip)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO candidate (url, title, text, source, status, created_at, kind, author, contact,"
+            " file_ids, ip, contact_public) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
             ("", title, note, "upload", "pending", datetime.now().isoformat(timespec="seconds"),
-             kind, author, contact, _json.dumps(file_ids or []), ip))
+             kind, author, contact, _json.dumps(file_ids or []), ip, int(contact_public)))
         conn.commit()
         return int(cur.lastrowid)
 
