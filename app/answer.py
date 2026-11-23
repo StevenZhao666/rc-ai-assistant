@@ -460,6 +460,15 @@ def _answer_impl(question: str, hits: list[dict], allow_llm: bool = True) -> dic
             return {"mode": "fallback_gap", "used": [],
                     "text": i18n.fallback_gap(lang, topic)}
 
+    # 预算熔断：今天的 token 用超了，就不再发起新的模型调用（降级为摘录）
+    if allow_llm and config.LLM_DAILY_TOKENS > 0:
+        try:
+            from .db import llm_tokens_today
+            if llm_tokens_today() >= config.LLM_DAILY_TOKENS:
+                allow_llm = False
+        except Exception:
+            pass
+
     strong_hit = bool(hits) and hits[0].get("score", 0) >= config.MIN_SCORE
     if strong_hit:
         need = True                      # 资料库里明明有，就别判成闲聊

@@ -37,6 +37,7 @@ LLM_KEY = os.environ.get("LLM_KEY", "")
 LLM_MODEL = os.environ.get("LLM_MODEL", "qwen3.8-27b")
 # 推理型模型（如 deepseek-flash）默认会先想一大段，短回答会被 max_tokens 截成空串。
 # 默认关掉思考；要开就 LLM_THINKING=on。带 thinking 参数被供应商拒绝时会自动去掉重试。
+LLM_DAILY_TOKENS = int(os.environ.get("LLM_DAILY_TOKENS", "3000000"))   # 每天 token 上限，超了只做摘录
 LLM_THINKING = os.environ.get("LLM_THINKING", "off").strip().lower() in ("on", "1", "true", "yes")
 
 # 供应商链：主 → 同供应商备用模型（免费档常报「访问量过大」）→ 另一家兜底。

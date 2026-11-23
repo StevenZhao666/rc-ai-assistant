@@ -607,6 +607,24 @@ def reject_upload(candidate_id: int, reviewer: str, note: str = "") -> None:
         conn.commit()
 
 
+def llm_tokens_today() -> int:
+    """今天已经用掉的 token（读 llm_usage.jsonl）。"""
+    import json as _json
+    path = config.DATA_DIR / "llm_usage.jsonl"
+    if not path.exists():
+        return 0
+    today = date.today().isoformat()
+    total = 0
+    for line in path.read_text(encoding="utf-8", errors="ignore").splitlines():
+        try:
+            r = _json.loads(line)
+        except Exception:
+            continue
+        if str(r.get("ts", "")).startswith(today):
+            total += int(r.get("prompt") or 0) + int(r.get("completion") or 0)
+    return total
+
+
 def _files_of(ids: list[int]) -> list[dict]:
     if not ids:
         return []
