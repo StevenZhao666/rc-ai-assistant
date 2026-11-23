@@ -20,6 +20,7 @@ from . import config, db
 from .auth import User, get_current_user
 from .retrieve import Retriever
 from .admin import router as admin_router
+from .library import router as library_router
 from .upload import router as upload_router
 from .review import router as review_router
 from .review import set_reload
@@ -28,6 +29,7 @@ app = FastAPI(title="RC AI Assistant", version="0.1.0")
 app.include_router(review_router)
 app.include_router(admin_router)
 app.include_router(upload_router)
+app.include_router(library_router)
 app.mount("/img", StaticFiles(directory=str(config.STATIC_DIR / "img")), name="img")
 config.FILES_DIR.mkdir(parents=True, exist_ok=True)
 app.mount("/files", StaticFiles(directory=str(config.FILES_DIR)), name="files")

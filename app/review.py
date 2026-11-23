@@ -136,12 +136,6 @@ def upload_decide(candidate_id: int, body: UploadDecideIn, request: Request) -> 
     return {"ok": True}
 
 
-@router.get("/api/library")
-def library(limit: int = 100) -> dict:
-    """公开只读：已经通过的投稿。"""
-    return {"items": db.library_items(limit=limit)}
-
-
 @router.get("/api/review/clauses")
 def clauses(request: Request) -> dict:
     _reviewer(request)

@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>資料庫 · 張崑崙書院</title>
+<style>
+  :root{--red:#88070f;--ink:#241f20;--dim:#6f6864;--line:#e4ddd8;--bg:#faf7f5;--card:#fff}
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:15px/1.6 -apple-system,"Segoe UI","Microsoft JhengHei","PingFang TC",sans-serif}
+  header{background:var(--red);color:#fff;padding:14px 20px;display:flex;align-items:center;gap:12px}
+  header b{font-size:16px}
+  header .sp{flex:1}
+  .lang{display:flex;gap:4px}
+  .lang button{border:1px solid rgba(255,255,255,.45);background:transparent;color:#fff;
+               border-radius:999px;padding:4px 10px;font-size:12px;cursor:pointer}
+  .lang button.on{background:#fff;color:var(--red);border-color:#fff;font-weight:600}
+  main{max-width:1000px;margin:0 auto;padding:22px 18px 60px}
+  h1{font-size:24px;margin:0 0 4px}
+  .lead{color:var(--dim);font-size:13px;margin:0 0 16px}
+  .bar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px}
+  .bar input{flex:1;min-width:200px;border:1px solid var(--line);border-radius:10px;
+             padding:10px 12px;font:inherit;background:#fff}
+  .chip{border:1px solid var(--line);background:#fff;color:var(--dim);border-radius:999px;
+        padding:7px 13px;font-size:13px;cursor:pointer}
+  .chip.on{background:var(--red);border-color:var(--red);color:#fff}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:12px}
+  .card h3{margin:0 0 2px;font-size:16px}
+  .meta{color:var(--dim);font-size:12.5px}
+  .note{font-size:13px;color:#3a3331;margin-top:6px;white-space:pre-wrap}
+  .files{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+  .files img{max-height:140px;border:1px solid var(--line);border-radius:8px;background:#fff}
+  .fileChip{display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:8px;
+            padding:7px 10px;background:#fff;text-decoration:none;color:var(--ink);font-size:12.5px}
+  .fileChip b{background:#f3efec;border-radius:4px;padding:2px 6px;font-size:11px;color:var(--dim)}
+  .empty{padding:40px;text-align:center;color:var(--dim)}
+  .tag{display:inline-block;font-size:11px;padding:1px 7px;border-radius:999px;background:#f3efec;color:var(--dim);margin-left:6px}
+</style>
+</head>
+<body>
+<header>
+  <b data-i18n="brand">張崑崙書院 · 資料庫</b>
+  <span class="sp"></span>
+  <div class="lang">
+    <button data-lang="zh-Hant">繁</button><button data-lang="zh-Hans">简</button><button data-lang="en">EN</button>
+  </div>
+</header>
+
+<main>
+  <h1 data-i18n="title">書院資料庫</h1>
+  <p class="lead" data-i18n="lead">院生作品、網站資源與文件。每一條都經過審核才上架。</p>
+
+  <div class="bar">
+    <input id="q" data-i18n-ph="searchPh" placeholder="搜尋標題、說明或作者…">
+    <button class="chip on" data-kind="" data-i18n="all">全部</button>
+    <button class="chip" data-kind="work" data-i18n="work">院生作品</button>
+    <button class="chip" data-kind="link" data-i18n="link">網站資源</button>
+    <button class="chip" data-kind="doc" data-i18n="doc">文件</button>
+  </div>
+
+  <div id="list"></div>
+  <p class="meta" id="count"></p>
+</main>
+
+<script>
+const NAME = { mascot: "崑崑", college: "張崑崙書院" };
+const I18N = {
+  "zh-Hant": { brand: `${NAME.college} · 資料庫`, title: "書院資料庫",
+    lead: "院生作品、網站資源與文件。每一條都經過審核才上架。",
+    searchPh: "搜尋標題、說明或作者…", all: "全部", work: "院生作品", link: "網站資源", doc: "文件",
+    empty: "還沒有內容。通過審核的投稿會出現在這裡。", count: (n) => `共 ${n} 條`,
+    by: "作者", updated: "更新於", download: "下載" },
+  "zh-Hans": { brand: `${NAME.college} · 数据库`, title: "书院数据库",
+    lead: "院生作品、网站资源与文件。每一条都经过审核才上架。",
+    searchPh: "搜索标题、说明或作者…", all: "全部", work: "院生作品", link: "网站资源", doc: "文件",
+    empty: "还没有内容。通过审核的投稿会出现在这里。", count: (n) => `共 ${n} 条`,
+    by: "作者", updated: "更新于", download: "下载" },
+  en: { brand: `${NAME.college} · Library`, title: "College Library",
+    lead: "Student projects, websites and documents. Everything is reviewed before it appears.",
+    searchPh: "Search title, description or author…", all: "All", work: "Student work", link: "Websites", doc: "Documents",
+    empty: "Nothing here yet. Approved submissions will appear here.", count: (n) => `${n} items`,
+    by: "By", updated: "Updated", download: "Download" }
+};
+const LANG_KEY = "cklc_lib_lang";
+let lang = localStorage.getItem(LANG_KEY) || "zh-Hant";
+const $ = s => document.querySelector(s);
+const t = k => I18N[lang][k];
+const esc = s => (s ?? "").toString().replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+let kind = "", q = "";
+
+function paint(){
+  document.documentElement.lang = lang;
+  document.querySelectorAll("[data-i18n]").forEach(el => { const v = t(el.dataset.i18n); if (typeof v === "string") el.textContent = v; });
+  document.querySelectorAll("[data-i18n-ph]").forEach(el => el.placeholder = t(el.dataset.i18nPh) || "");
+  document.querySelectorAll(".lang button").forEach(b => b.classList.toggle("on", b.dataset.lang === lang));
+  document.title = t("title") + " · " + NAME.college;
+}
+document.querySelectorAll(".lang button").forEach(b => b.onclick = () => { lang = b.dataset.lang; localStorage.setItem(LANG_KEY, lang); paint(); load(); });
+document.querySelectorAll(".chip").forEach(b => b.onclick = () => {
+  kind = b.dataset.kind;
+  document.querySelectorAll(".chip").forEach(x => x.classList.toggle("on", x === b));
+  load();
+});
+let timer;
+$("#q").oninput = () => { clearTimeout(timer); timer = setTimeout(() => { q = $("#q").value.trim(); load(); }, 250); };
+
+function fileSize(n){ n = n||0; return n < 1024 ? n+" B" : (n < 1048576 ? (n/1024).toFixed(n<10240?1:0)+" KB" : (n/1048576).toFixed(2)+" MB"); }
+
+async function load(){
+  const p = new URLSearchParams({ kind, q });
+  const r = await fetch("api/library?" + p);
+  const d = await r.json();
+  $("#count").textContent = (kind || q) ? t("count")((d.items || []).length) : t("count")(d.total ?? 0);
+  $("#list").innerHTML = (d.items && d.items.length) ? d.items.map(it => `
+    <div class="card" id="i${it.id}">
+      <h3>${esc(it.title)}<span class="tag">${esc(t(it.kind) || it.kind)}</span></h3>
+      <div class="meta">${t("by")}：${esc(it.author || "—")}　·　${t("updated")} ${esc((it.reviewed_at||"").slice(0,10))}
+        ${it.contact ? "　·　" + esc(it.contact) : ""}</div>
+      ${it.note ? `<div class="note">${esc(it.note)}</div>` : ""}
+      <div class="files">${(it.files||[]).map(f => f.mime && f.mime.startsWith("image/")
+        ? `<a href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="${esc(f.orig_name)}"></a>`
+        : `<a class="fileChip" href="${esc(f.url)}" target="_blank" rel="noopener">
+             <b>${esc((f.orig_name||"").split(".").pop().toUpperCase())}</b>${esc(f.orig_name)}
+             <span class="meta">${fileSize(f.size_bytes)}</span></a>`).join("")}</div>
+    </div>`).join("") : `<div class="empty">${t("empty")}</div>`;
+}
+
+paint(); load();
+</script>
+</body>
+</html>

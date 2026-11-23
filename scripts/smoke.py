@@ -65,7 +65,7 @@ def main() -> None:
     code, d = req("/health")
     check("健康检查 200 且 ok=true", code == 200 and isinstance(d, dict) and d.get("ok"), f"{code} {d}")
 
-    for path, word in (("/", "崑崑"), ("/review", "审批"), ("/admin", "数据后台"), ("/upload", "投稿")):
+    for path, word in (("/", "崑崑"), ("/review", "审批"), ("/admin", "数据后台"), ("/upload", "投稿"), ("/library", "資料庫")):
         code, body = req(path)
         text = body if isinstance(body, str) else json.dumps(body, ensure_ascii=False)
         check(f"页面 {path} 可打开且含关键词", code == 200 and word in text, f"{code}")
@@ -87,6 +87,11 @@ def main() -> None:
     check("投稿信息可读", code == 200 and isinstance(info, dict) and "open" in info, str(code))
     code, _ = req("/api/upload", "POST", {})
     check("投稿接口拒绝空提交", code in (400, 403, 415, 422, 503), str(code))
+
+    code, lib = req("/api/library")
+    check("资料库接口可读", code == 200 and isinstance(lib, dict) and "items" in lib, str(code))
+    code, sall = req("/api/search?q=" + "abc")
+    check("统一检索接口可读", code == 200 and isinstance(sall, dict) and "items" in sall, str(code))
 
     # 3. 鉴权
     code, _ = req("/api/admin/overview")

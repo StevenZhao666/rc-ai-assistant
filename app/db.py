@@ -600,18 +600,80 @@ def reject_upload(candidate_id: int, reviewer: str, note: str = "") -> None:
         conn.commit()
 
 
-def library_items(status: str = "published", limit: int = 200) -> list[dict]:
-    import json as _json
+def _files_of(ids: list[int]) -> list[dict]:
+    if not ids:
+        return []
     with connect() as conn:
         conn.row_factory = sqlite3.Row
+        marks = ",".join("?" * len(ids))
         rows = [dict(r) for r in conn.execute(
-            "SELECT * FROM library_item WHERE status=? ORDER BY id DESC LIMIT ?",
-            (status, limit)).fetchall()]
+            f"SELECT id, path, orig_name, mime, size_bytes FROM upload_file WHERE id IN ({marks})",
+            tuple(ids)).fetchall()]
+    for f in rows:
+        f["url"] = "/files/" + str(f["path"]).split("files/", 1)[-1]
+    return rows
+
+
+def library_items(status: str = "published", limit: int = 200,
+                  kind: str = "", q: str = "") -> list[dict]:
+    import json as _json
+    sql = "SELECT * FROM library_item WHERE status=?"
+    args: list = [status]
+    if kind:
+        sql += " AND kind=?"
+        args.append(kind)
+    if q:
+        sql += " AND (title LIKE ? OR note LIKE ? OR author LIKE ?)"
+        args += [f"%{q}%"] * 3
+    sql += " ORDER BY id DESC LIMIT ?"
+    args.append(limit)
+    with connect() as conn:
+        conn.row_factory = sqlite3.Row
+        rows = [dict(r) for r in conn.execute(sql, tuple(args)).fetchall()]
     for r in rows:
         r["file_ids"] = _json.loads(r.get("file_ids") or "[]")
+        r["files"] = _files_of(r["file_ids"])
         if not int(r.get("contact_public") or 0):
             r.pop("contact", None)          # 没选公开，就不对外返回邮箱
     return rows
+
+
+def library_item(item_id: int) -> dict | None:
+    import json as _json
+    with connect() as conn:
+        conn.row_factory = sqlite3.Row
+        r = conn.execute("SELECT * FROM library_item WHERE id=?", (item_id,)).fetchone()
+    if not r:
+        return None
+    d = dict(r)
+    d["file_ids"] = _json.loads(d.get("file_ids") or "[]")
+    d["files"] = _files_of(d["file_ids"])
+    if not int(d.get("contact_public") or 0):
+        d.pop("contact", None)
+    return d
+
+
+def search_all(q: str, limit: int = 20) -> list[dict]:
+    """统一检索：问答 + 资料库。返回带 type 的结果，先各取一半再合并。"""
+    q = (q or "").strip()
+    if not q:
+        return []
+    out: list[dict] = []
+    with connect() as conn:
+        conn.row_factory = sqlite3.Row
+        for r in conn.execute(
+                "SELECT id, question, answer FROM kb_item WHERE status='published'"
+                " AND (question LIKE ? OR answer LIKE ?) LIMIT ?",
+                (f"%{q}%", f"%{q}%", limit)).fetchall():
+            out.append({"type": "qa", "id": r["id"], "title": r["question"],
+                        "summary": (r["answer"] or "")[:120], "url": f"/?q={q}"})
+        for r in conn.execute(
+                "SELECT id, kind, title, note FROM library_item WHERE status='published'"
+                " AND (title LIKE ? OR note LIKE ? OR author LIKE ?) LIMIT ?",
+                (f"%{q}%", f"%{q}%", f"%{q}%", limit)).fetchall():
+            out.append({"type": r["kind"], "id": r["id"], "title": r["title"],
+                        "summary": (r["note"] or "")[:120], "url": f"/library#{r['id']}"})
+    return out[:limit]
 
 
 def add_upload_candidate(title: str, kind: str, author: str = "", contact: str = "",
