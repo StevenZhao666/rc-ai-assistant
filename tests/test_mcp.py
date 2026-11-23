@@ -65,7 +65,7 @@ async def main():
             check("get_clause 返回原文", bool(rows) and any("訪客" in (x.get("text") or "") for x in rows),
                   str(r)[:160])
 
-            lib = payload(await sess.call_tool("search_kb", {"query": "作品", "limit": 3}))
+            lib = payload(await sess.call_tool("search_kb", {"query": "公開測試作品甲", "limit": 5}))
             item = next((x for x in lib.get("items", []) if x.get("type") in ("work", "link", "doc")), None)
             if item:
                 one = payload(await sess.call_tool("get_item", {"item_id": item["id"], "type": item["type"]}))

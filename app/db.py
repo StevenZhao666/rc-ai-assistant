@@ -6,11 +6,18 @@
 - 检索只吃 status='published' 且未过期的条目 —— 审核变成硬约束
 """
 import json
+import re
 import sqlite3
 from datetime import date, datetime, timedelta
 from pathlib import Path
 
 from . import config
+
+try:
+    from opencc import OpenCC
+    _CC = OpenCC("t2s")          # 繁简统一，检索时跨字形匹配
+except Exception:                # noqa: BLE001
+    _CC = None
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS kb_item (
@@ -614,6 +621,27 @@ def _files_of(ids: list[int]) -> list[dict]:
     return rows
 
 
+def _norm(s: str) -> str:
+    """繁简统一，用于跨字形匹配。没装 OpenCC 就原样返回。"""
+    if _CC is None:
+        return (s or "").lower()
+    return _CC.convert(s or "").lower()
+
+
+def _tokens(q: str) -> set[str]:
+    """中文二元组 + 英文/数字词，去掉单字噪声。"""
+    t = _norm(q)
+    out = {w for w in re.findall(r"[a-z0-9]{2,}", t)}
+    zh = re.sub(r"[^一-鿿]", "", t)
+    out |= {zh[i:i + 2] for i in range(len(zh) - 1)}
+    return {x for x in out if x.strip()}
+
+
+def _score(text: str, grams: set[str]) -> int:
+    t = _norm(text)
+    return sum(1 for g in grams if g in t)
+
+
 def library_items(status: str = "published", limit: int = 200,
                   kind: str = "", q: str = "") -> list[dict]:
     import json as _json
@@ -622,14 +650,17 @@ def library_items(status: str = "published", limit: int = 200,
     if kind:
         sql += " AND kind=?"
         args.append(kind)
-    if q:
-        sql += " AND (title LIKE ? OR note LIKE ? OR author LIKE ?)"
-        args += [f"%{q}%"] * 3
     sql += " ORDER BY id DESC LIMIT ?"
     args.append(limit)
     with connect() as conn:
         conn.row_factory = sqlite3.Row
         rows = [dict(r) for r in conn.execute(sql, tuple(args)).fetchall()]
+    if q:
+        grams = _tokens(q)
+        rows = [r for r in rows
+                if _score(f"{r.get('title','')} {r.get('note','')} {r.get('author','')}", grams) > 0]
+        rows.sort(key=lambda r: -_score(f"{r.get('title','')} {r.get('note','')}", grams))
+        rows = rows[:limit]
     for r in rows:
         r["file_ids"] = _json.loads(r.get("file_ids") or "[]")
         r["files"] = _files_of(r["file_ids"])
@@ -654,26 +685,30 @@ def library_item(item_id: int) -> dict | None:
 
 
 def search_all(q: str, limit: int = 20) -> list[dict]:
-    """统一检索：问答 + 资料库。返回带 type 的结果，先各取一半再合并。"""
-    q = (q or "").strip()
-    if not q:
+    """统一检索：问答 + 资料库。中文按二元组打分，繁简互通。"""
+    grams = _tokens(q or "")
+    if not grams:
         return []
-    out: list[dict] = []
+    hits: list[tuple[int, dict]] = []
     with connect() as conn:
         conn.row_factory = sqlite3.Row
         for r in conn.execute(
-                "SELECT id, question, answer FROM kb_item WHERE status='published'"
-                " AND (question LIKE ? OR answer LIKE ?) LIMIT ?",
-                (f"%{q}%", f"%{q}%", limit)).fetchall():
-            out.append({"type": "qa", "id": r["id"], "title": r["question"],
-                        "summary": (r["answer"] or "")[:120], "url": f"/?q={q}"})
+                "SELECT id, question, answer FROM kb_item WHERE status='published'").fetchall():
+            sc = _score(f"{r['question']} {r['answer']}", grams)
+            if sc:
+                hits.append((sc + 2, {"type": "qa", "id": r["id"], "title": r["question"],
+                                      "summary": (r["answer"] or "")[:160]}))
         for r in conn.execute(
-                "SELECT id, kind, title, note FROM library_item WHERE status='published'"
-                " AND (title LIKE ? OR note LIKE ? OR author LIKE ?) LIMIT ?",
-                (f"%{q}%", f"%{q}%", f"%{q}%", limit)).fetchall():
-            out.append({"type": r["kind"], "id": r["id"], "title": r["title"],
-                        "summary": (r["note"] or "")[:120], "url": f"/library#{r['id']}"})
-    return out[:limit]
+                "SELECT id, kind, title, note FROM library_item WHERE status='published'").fetchall():
+            sc = _score(f"{r['title']} {r['note']}", grams)
+            if sc:
+                hits.append((sc, {"type": r["kind"], "id": r["id"], "title": r["title"],
+                                  "summary": (r["note"] or "")[:160]}))
+    hits.sort(key=lambda x: -x[0])
+    if hits:
+        floor = max(2, hits[0][0] * 0.5)
+        hits = [h for h in hits if h[0] >= floor]
+    return [h[1] for h in hits[:limit]]
 
 
 def add_upload_candidate(title: str, kind: str, author: str = "", contact: str = "",
