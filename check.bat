@@ -7,4 +7,7 @@ echo.
 echo === MCP 四个工具 ===
 .venv\Scripts\python.exe tests\test_mcp.py
 echo.
+echo === 自然语言查询（会调用一次模型） ===
+.venv\Scripts\python.exe ask.py "書院能不能養寵物"
+echo.
 pause
