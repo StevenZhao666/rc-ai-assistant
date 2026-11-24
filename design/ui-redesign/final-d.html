@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>崑崑 · 張崑崙書院助手</title>
+<link rel="icon" href="img/kunkun.jpg">
+<style>
+:root{
+    --accent:#8C1220; --accent-2:#B4232C;
+    --ink:#1F1715; --ink-2:#4E423E; --ink-3:#786A65;
+    --glass:rgba(255,255,255,.72); --glass-2:rgba(255,255,255,.55);
+    --edge:rgba(140,18,32,.14); --edge-soft:rgba(140,18,32,.08);
+    --hair:rgba(140,18,32,.10);
+    --ok:#2F6B4F; --warn:#8A6100;
+    --sans:"Microsoft JhengHei","PingFang TC","Noto Sans TC","Microsoft YaHei",sans-serif;
+    --mono:"Cascadia Mono",Consolas,"SF Mono",monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0;min-height:100%}
+  body{
+    color:var(--ink); font-family:var(--sans); font-size:15.5px; line-height:1.7;
+    background:
+      radial-gradient(ellipse 78% 58% at 2% 0%, rgba(122,23,52,.055) 0%, transparent 62%),
+      #FAF8F5;
+    background-attachment:fixed;
+  }
+
+  /* ── 頂欄 ────────────────────────────── */
+  header{position:sticky;top:0;z-index:8;background:rgba(255,255,255,.64);
+         backdrop-filter:blur(18px) saturate(1.2);-webkit-backdrop-filter:blur(18px) saturate(1.2);
+         border-bottom:1px solid var(--hair);padding:10px 18px 9px}
+  .hrow{max-width:740px;margin:0 auto;display:flex;align-items:center;gap:10px}
+  .hrow.sub{margin-top:8px;gap:8px}
+  .brand{display:flex;align-items:center;gap:9px;min-width:0;flex:1}
+  .av{width:32px;height:32px;border-radius:10px;overflow:hidden;flex:0 0 auto;
+      border:1px solid #EEE6E0;box-shadow:0 1px 3px rgba(50,35,30,.08)}
+  .av img{width:100%;height:100%;object-fit:cover;display:block}
+  .bt{min-width:0}
+  header h1{font-size:15px;font-weight:700;letter-spacing:.02em;margin:0;color:var(--ink);
+            white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .bt em{font-style:normal;display:block;margin-top:-1px;font-size:9px;letter-spacing:.18em;color:#8A8078}
+  .lang{display:flex;gap:2px;background:#F1EBE5;border:1px solid transparent;
+        border-radius:999px;padding:3px;flex:0 0 auto}
+  .lang button{font:inherit;font-size:12px;padding:4px 9px;min-height:28px;border-radius:999px;
+               cursor:pointer;background:transparent;border:0;color:#6E6761}
+  .lang button.on{background:#8C1220;color:#fff;font-weight:600}
+  .pill{font-size:10.5px;letter-spacing:.02em;color:#6E6761}
+  .pill.btn{font-size:11px;letter-spacing:.02em;
+            background:#FFFFFF;border:1px solid #E7E0DA;border-radius:8px;
+            padding:5px 10px;cursor:pointer;white-space:nowrap;color:#4E423E}
+  .pill.btn:hover{border-color:var(--accent);color:var(--accent)}
+  .badges{display:flex;align-items:center;gap:7px;min-width:0;flex:1;overflow:hidden}
+  #badge1{font-size:10.5px;color:#8A8078;white-space:nowrap}
+  /* 使用者決定：頂欄不再重複「AI 生成 · 僅供參考」（免責條已寫）。
+     元素保留、只隱藏：JS 有 $('#badge2').textContent = ...，刪 DOM 會拋錯。 */
+  #badge2{display:none}
+  #badge2::before{content:"·";margin-right:7px;opacity:.6}
+
+  /* ── 免責 ────────────────────────────── */
+  .notice{max-width:740px;margin:14px auto 0;padding:0 18px}
+  .notice{font-size:11.5px;line-height:1.65;color:var(--ink-3)}
+  .notice b{color:var(--accent);font-weight:600}
+  #notice{max-width:740px;margin:14px auto 0;padding:8px 13px;
+          background:rgba(255,255,255,.46);border:1px solid var(--edge-soft);border-left:2px solid rgba(140,18,32,.32);
+          border-radius:0 10px 10px 0;font-size:12px;line-height:1.6;color:#4E423E;
+          backdrop-filter:blur(8px);max-width:calc(740px - 36px)}
+  #notice b{color:var(--ink);font-weight:600}
+  #notice:empty{display:none}
+
+  /* ── 訊息 ────────────────────────────── */
+  main{max-width:740px;margin:0 auto;padding:16px 18px calc(196px + env(safe-area-inset-bottom));position:relative;z-index:1}
+  .msg{display:flex;gap:9px;margin:0 0 16px;align-items:flex-start;
+       animation:up .42s cubic-bezier(.22,1,.36,1) both}
+  @keyframes up{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+  .msg.user{flex-direction:row-reverse}
+  .msg .who{flex:0 0 30px;width:30px;height:30px;border-radius:10px;display:grid;place-items:center;
+            font-size:11px;font-weight:600;overflow:hidden;margin-top:2px}
+  .msg.ai .who{background:#fff;border:1px solid rgba(255,255,255,.95);
+               box-shadow:0 2px 8px -4px rgba(140,18,32,.4)}
+  .msg.ai .who img{width:100%;height:100%;object-fit:cover;display:block}
+  .msg.user .who{background:rgba(140,18,32,.09);color:#6B2B2B;border:1px solid rgba(140,18,32,.14)}
+
+  .bubble{max-width:calc(100% - 40px);border-radius:16px;padding:13px 16px;font-size:16px;
+          white-space:pre-wrap;word-break:break-word}
+  .msg.user .bubble{background:#E9D6DD;border:1px solid #BE8B9D;
+                    border-bottom-right-radius:4px;color:#33272B}
+  .msg.ai .bubble{background:#FFFFFF;border:1px solid #E7E0DA;color:#282421;
+                  box-shadow:0 1px 3px rgba(50,35,30,.05);
+                  border-bottom-left-radius:4px}
+  .bubble.fail{border-color:rgba(138,97,0,.34);box-shadow:0 0 0 1px rgba(138,97,0,.08)}
+
+  /* ── 引用 ────────────────────────────── */
+  .cite{margin-top:12px;border-top:1px solid #EDE7E1;padding-top:10px;
+        font-size:12.5px;color:#4E423E}
+  .cite summary{cursor:pointer;list-style:none;font-family:var(--sans);font-size:12px;
+                letter-spacing:.02em;color:var(--accent);display:inline-flex;align-items:center;gap:6px;
+                padding:9px 12px;margin-left:-12px;min-height:40px;border-radius:12px;
+                background:#F6F1EC;border:1px solid #E7E0DA;
+                transition:.18s;user-select:none}
+  .cite summary:hover{background:#EFE7E0;border-color:rgba(140,18,32,.30)}
+  .cite summary::-webkit-details-marker{display:none}
+  .cite summary::before{content:"▸";transition:transform .18s;display:inline-block;opacity:.75}
+  .cite[open] summary::before{transform:rotate(90deg)}
+  .citeItem{margin-top:9px;background:#FFFFFF;border:1px solid #E7E0DA;
+            border-radius:12px;padding:11px 13px}
+  .citeItem b{color:#1F1715;font-weight:600;font-size:13px}
+  .citeMeta{font-size:11.5px;color:#6E6761;margin-left:4px}
+  .citeQ{font-size:12px;margin-top:5px;color:#4E423E}
+  .citeA{margin-top:6px;font-size:12px;color:#4E423E;white-space:pre-wrap;
+         max-height:150px;overflow:auto;border-left:2px solid #E0CBD2;padding-left:9px}
+  .citeLink{display:inline-block;margin-top:7px;font-size:11.5px;color:var(--accent);
+            text-decoration:none;border-bottom:1px solid rgba(140,18,32,.3)}
+  .tag{display:inline-block;font-size:10.5px;padding:1px 7px;border-radius:6px;margin:6px 6px 0 0;
+       background:rgba(255,246,228,.85);color:var(--warn);border:1px solid rgba(240,223,184,.9)}
+
+  /* ── 回饋 ────────────────────────────── */
+  .fb{display:flex;gap:7px;align-items:center;margin-top:12px}
+  .fb button{font-size:12px;background:#F2EBE4;border:1px solid #DED3CA;
+             border-radius:8px;padding:8px 12px;min-height:36px;color:#3E332F;cursor:pointer;
+             transition:.18s;font-family:inherit}
+  .fb button:hover{border-color:var(--accent);color:var(--accent);background:#FFFFFF}
+  .fb .done{font-size:12px;color:var(--ok)}
+
+  /* ── 底部 ────────────────────────────── */
+  footer{position:fixed;left:0;right:0;bottom:0;z-index:9;
+         background:linear-gradient(to top,#FCF8F5 42%,rgba(252,248,245,.92) 74%,rgba(252,248,245,0));
+         backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);
+         padding:0 0 13px}
+  .quick{max-width:740px;margin:0 auto;padding:0 30px 9px 18px;display:flex;gap:7px;overflow:auto;
+         scrollbar-width:none;
+         mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 34px),transparent 100%);
+         -webkit-mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 34px),transparent 100%)}
+  .quick::-webkit-scrollbar{display:none}
+  .quick span{white-space:nowrap;font-size:12.5px;background:#FFFFFF;
+              border:1px solid #E7E0DA;border-radius:999px;padding:0 14px;min-height:40px;
+              display:inline-flex;align-items:center;color:#4E423E;
+              cursor:pointer;transition:.18s;box-shadow:0 1px 2px rgba(50,35,30,.04)}
+  .quick span:hover{border-color:var(--accent);color:var(--accent)}
+  .box{max-width:740px;margin:0 auto;padding:0 18px;display:flex;align-items:center;gap:8px}
+  .box{background:transparent}
+  #q{flex:1;border:1px solid #E7E0DA;outline:none;font:inherit;font-size:16px;
+     color:var(--ink);background:#FFFFFF;border-radius:999px;padding:12px 18px;
+     box-shadow:0 1px 3px rgba(50,35,30,.05);transition:.2s}
+  #q::placeholder{color:#6E6761}
+  #q:focus{border-color:rgba(140,18,32,.42);box-shadow:0 0 0 3px rgba(140,18,32,.07)}
+  .primary{border:0;cursor:pointer;color:#fff;font-family:inherit;font-size:14px;font-weight:600;
+           background:#8C1220;border-radius:999px;
+           padding:13px 18px;min-height:44px;white-space:nowrap;transition:.2s}
+  .primary:hover{background:#78101C}
+  .primary:disabled{opacity:.5;cursor:default}
+  :focus-visible{outline:2px solid #8C1220;outline-offset:2px}
+
+  /* ── 學號彈窗 ────────────────────────── */
+  .mask{position:fixed;inset:0;z-index:20;background:rgba(31,23,21,.42);
+        backdrop-filter:blur(6px);display:flex;align-items:flex-end;justify-content:center;
+        padding:0 0 0}
+  .mask[hidden]{display:none}
+  .sheet{width:100%;max-width:480px;background:#FFFDFB;border-radius:20px 20px 0 0;
+         padding:22px 20px 24px;box-shadow:0 -18px 50px -20px rgba(31,23,21,.55);
+         animation:sheetUp .28s cubic-bezier(.22,1,.36,1) both}
+  @keyframes sheetUp{from{transform:translateY(18px);opacity:.6}to{transform:none;opacity:1}}
+  .sheet h2{margin:0 0 6px;font-size:17px;letter-spacing:.02em}
+  .sheet p{margin:0 0 14px;font-size:12.5px;color:var(--ink-3);line-height:1.7}
+  #sidInput{width:100%;font:inherit;font-size:16px;letter-spacing:.14em;padding:11px 13px;
+            border:1px solid var(--edge);border-radius:12px;background:#fff;outline:none;
+            font-family:var(--mono);text-transform:lowercase}
+  #sidInput:focus{border-color:var(--accent);box-shadow:0 0 0 3px rgba(140,18,32,.08)}
+  .err{margin-top:8px;font-size:11.5px;color:#A3151F}
+  .sheet .row{display:flex;gap:9px;margin-top:16px}
+  .sheet .row .primary{flex:1;padding:12px 0;text-align:center}
+  .ghost{flex:0 0 auto;border:1px solid var(--edge);background:transparent;border-radius:999px;
+         padding:12px 16px;font:inherit;font-size:13px;color:var(--ink-2);cursor:pointer}
+  .ghost:hover{border-color:var(--accent);color:var(--accent)}
+
+  @media (max-width:420px){
+    header h1{font-size:13px}
+    .msg .who{flex-basis:26px;width:26px;height:26px;border-radius:9px}
+    .bubble{max-width:calc(100% - 34px);font-size:14.5px}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div class="hrow">
+    <div class="brand">
+      <div class="av"><img src="img/kunkun.jpg" alt=""></div>
+      <div class="bt">
+        <h1 id="hTitle">崑崑 · 張崑崙書院助手</h1>
+        <em>KUN KUN · ASSISTANT</em>
+      </div>
+    </div>
+    <div class="lang">
+      <button data-lang="zh-Hant" class="on">繁</button>
+      <button data-lang="zh-Hans">简</button>
+      <button data-lang="en">EN</button>
+    </div>
+  </div>
+  <div class="hrow sub">
+    <span class="pill btn" id="who" title="填寫學號">未填學號</span>
+    <div class="badges">
+      <span class="pill" id="badge1">測試版 · 資料未審核</span>
+      <span class="pill" id="badge2">AI 生成 · 僅供參考</span>
+    </div>
+  </div>
+</header>
+
+<div class="notice" id="notice"></div>
+
+<main id="log"></main>
+
+<footer>
+  <div class="quick" id="quick"></div>
+  <div class="box">
+    <input id="q" type="text" autocomplete="off">
+    <button class="primary" id="send"></button>
+  </div>
+</footer>
+
+<div class="mask" id="mask" hidden>
+  <div class="sheet">
+    <h2 id="mTitle"></h2>
+    <p id="mHint"></p>
+    <input id="sidInput" type="text" maxlength="7" autocomplete="off" autocapitalize="off" spellcheck="false">
+    <div class="err" id="sidErr" hidden></div>
+    <div class="row">
+      <button class="primary" id="sidOk"></button>
+      <button class="ghost" id="sidSkip"></button>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ── 文案（三语） ─────────────────────────────── */
+const T = {
+  "zh-Hant": {
+    title: "崑崑 · 張崑崙書院助手",
+    badge1: "測試版 · 資料未審核",
+    badge2: "AI 生成 · 僅供參考",
+    whoNone: "未填學號（點此填寫）",
+    whoHave: "學號：",
+    notice: "回答由 AI 根據書院資料自動生成，<b>僅供參考，不代表書院或學校的正式意見</b>，也不能作為決定依據。涉及規定、費用、期限，請以官方最新公告和書院辦公室答覆為準；緊急情況請撥 <b>999</b>。",
+    welcome: "你好，我是崑崑，張崑崙書院的吉祥物。書院的事都可以問我——規章、設施、房務、辦事流程。\n我只根據書院資料回答，答完會告訴你依據哪一條。\n\n注意：我的回答是 AI 自動生成的，僅供參考；遇到規定、費用、期限這類事，請以官方公告為準。",
+    placeholder: "問點什麼… 例如：退宿要提前多久預約？",
+    send: "發送",
+    quick: ["辦公室在哪", "怎麼換房間", "健身房時間", "能養寵物嗎", "問一個資料裡沒有的"],
+    quickQ: ["書院辦公室在哪裡？", "房間更換怎麼申請？", "健身房開放時間", "可以養寵物嗎", "今天晚飯吃什麼"],
+    useful: "👍 有用", useless: "👎 沒用", thanks: "感謝回饋 ✓",
+    fbFail: "記錄失敗，可能沒網，再試一次",
+    idTitle: "填一下學號",
+    idHint: "學號只用於統計「誰問了什麼」和限制每人每小時的額度，不會公開，也不需要密碼。",
+    idOk: "確定", idSkip: "稍後再說",
+    idErr: "學號填 7 位：2 個字母 + 5 位數字，例如 uc12345",
+    askFirst: "先點右上角填學號",
+    searching: "檢索中…",
+    tooMany: "這個小時問得太多了，過一會兒再來。",
+    quotaTip: "本小時的 AI 回答次數用完了，後面會改為直接摘錄資料原文。",
+    reqFail: "請求失敗：",
+    cite: "依據", verified: "核實於", unverified: "未核實", matched: "匹配條目：",
+    citeHint: "點開看原文", citeHintOpen: "收起原文", sourceLink: "原始頁面"
+  },
+  "zh-Hans": {
+    title: "崑崑 · 張崑崙书院助手",
+    badge1: "测试版 · 数据未审核",
+    badge2: "AI 生成 · 仅供参考",
+    whoNone: "未填学号（点此填写）",
+    whoHave: "学号：",
+    notice: "回答由 AI 根据书院资料自动生成，<b>仅供参考，不代表书院或学校的正式意见</b>，也不能作为决定依据。涉及规定、费用、期限，请以官方最新公告和书院办公室答复为准；紧急情况请拨 <b>999</b>。",
+    welcome: "你好，我是崑崑，張崑崙书院的吉祥物。书院的事都可以问我——规章、设施、房务、办事流程。\n我只根据书院资料回答，答完会告诉你依据哪一条。\n\n注意：我的回答是 AI 自动生成的，仅供参考；遇到规定、费用、期限这类事，请以官方公告为准。",
+    placeholder: "问点什么… 例如：退宿要提前多久预约？",
+    send: "发送",
+    quick: ["办公室在哪", "怎么换房间", "健身房时间", "能养宠物吗", "问一个资料里没有的"],
+    quickQ: ["书院办公室在哪里？", "房间更换怎么申请？", "健身房开放时间", "可以养宠物吗", "今天晚饭吃什么"],
+    useful: "👍 有用", useless: "👎 没用", thanks: "感谢反馈 ✓",
+    fbFail: "记录失败，可能没网，再试一次",
+    idTitle: "填一下学号",
+    idHint: "学号只用于统计「谁问了什么」和限制每人每小时的额度，不会公开，也不需要密码。",
+    idOk: "确定", idSkip: "稍后再说",
+    idErr: "学号填 7 位：2 个字母 + 5 位数字，例如 uc12345",
+    askFirst: "先点右上角填学号",
+    searching: "检索中…",
+    tooMany: "这个小时问得太多了，过一会儿再来。",
+    quotaTip: "本小时的 AI 回答次数用完了，后面会改为直接摘录资料原文。",
+    reqFail: "请求失败：",
+    cite: "依据", verified: "核实于", unverified: "未核实", matched: "匹配条目：",
+    citeHint: "点开看原文", citeHintOpen: "收起原文", sourceLink: "原始页面"
+  },
+  "en": {
+    title: "Kunkun · CKLC Assistant",
+    badge1: "Test build · data unreviewed",
+    badge2: "AI-generated · reference only",
+    whoNone: "Enter student ID",
+    whoHave: "ID: ",
+    notice: "Answers are generated by AI from college materials, <b>for reference only</b> — not an official statement of the College or the University. For rules, fees and deadlines, follow the latest official notice or ask the College Office. In an emergency call <b>999</b>.",
+    welcome: "Hi, I'm Kunkun, the mascot of Cheong Kun Lun College. Ask me about hall rules, facilities, rooms and procedures.\nI answer only from college materials and show the source.\n\nAnswers are AI-generated; for rules, fees and deadlines follow official notices.",
+    placeholder: "Ask something… e.g. how many days ahead for check-out?",
+    send: "Send",
+    quick: ["Where's the office", "Change rooms", "Gym hours", "Pets allowed?", "Ask something unknown"],
+    quickQ: ["Where is the college office?", "How do I change rooms?", "Gym opening hours", "Can I keep a pet?", "What's for dinner tonight"],
+    useful: "👍 Helpful", useless: "👎 Not helpful", thanks: "Thanks for the feedback ✓",
+    fbFail: "Couldn't save, check your connection and retry",
+    idTitle: "Your student ID",
+    idHint: "Used only to count questions and apply the hourly quota. Not published, no password involved.",
+    idOk: "OK", idSkip: "Later",
+    idErr: "7 characters: 2 letters + 5 digits, e.g. uc12345",
+    askFirst: "Enter your student ID first",
+    searching: "Searching…",
+    tooMany: "Too many questions this hour. Try again later.",
+    quotaTip: "Hourly AI quota used up — falling back to quoting the source text.",
+    reqFail: "Request failed: ",
+    cite: "Source", verified: "verified", unverified: "unverified", matched: "Matched entry: ",
+    citeHint: "tap to read the source text", citeHintOpen: "hide source text", sourceLink: "original page"
+  }
+};
+
+const SID_KEY = 'cklc_sid';
+const DEV_KEY = 'cklc_dev';
+const LANG_KEY = 'cklc_lang';
+
+const S = {
+  lang: localStorage.getItem(LANG_KEY) || 'zh-Hant',
+  sid: localStorage.getItem(SID_KEY) || ''
+};
+if (!T[S.lang]) S.lang = 'zh-Hant';
+const t = k => T[S.lang][k];
+
+/* ── 设备号 ───────────────────────────────────── */
+function devId() {
+  let d = localStorage.getItem(DEV_KEY);
+  if (!d) {
+    d = (crypto.randomUUID ? crypto.randomUUID() : (Date.now() + '-' + Math.random()));
+    localStorage.setItem(DEV_KEY, d);
+  }
+  return d;
+}
+function headers() {
+  const h = {'Content-Type': 'application/json', 'X-Device-Id': devId()};
+  if (S.sid) h['X-Student-Id'] = S.sid;
+  return h;
+}
+
+/* ── 界面文字 ─────────────────────────────────── */
+const $ = s => document.querySelector(s);
+const log = $('#log'), qEl = $('#q'), sendBtn = $('#send'), whoEl = $('#who');
+let welcomeBubble = null;   // 开场白气泡：切语言时要跟着换
+
+function paintChrome() {
+  document.documentElement.lang = S.lang;
+  document.title = t('title');
+  $('#hTitle').textContent = t('title');
+  $('#badge1').textContent = t('badge1');
+  $('#badge2').textContent = t('badge2');
+  $('#notice').innerHTML = t('notice');
+  qEl.placeholder = t('placeholder');
+  sendBtn.textContent = t('send');
+  whoEl.textContent = S.sid ? (t('whoHave') + S.sid) : t('whoNone');
+  document.querySelectorAll('.lang button').forEach(b =>
+    b.classList.toggle('on', b.dataset.lang === S.lang));
+
+  const quick = $('#quick');
+  quick.innerHTML = '';
+  t('quick').forEach((label, i) => {
+    const s = document.createElement('span');
+    s.textContent = label;
+    s.onclick = () => ask(t('quickQ')[i]);
+    quick.appendChild(s);
+  });
+
+  if (!log.dataset.welcomed) {
+    log.innerHTML = '';
+    welcomeBubble = addMsg('ai', t('welcome'));
+    log.dataset.welcomed = '1';
+  } else if (welcomeBubble) {
+    // 切语言时，开场白也要跟着换
+    welcomeBubble.textContent = t('welcome');
+  }
+}
+
+document.querySelectorAll('.lang button').forEach(b => b.onclick = () => {
+  S.lang = b.dataset.lang;
+  localStorage.setItem(LANG_KEY, S.lang);
+  paintChrome();
+});
+
+/* ── 学号弹窗 ─────────────────────────────────── */
+const mask = $('#mask');
+
+function openSidModal() {
+  $('#mTitle').textContent = t('idTitle');
+  $('#mHint').textContent = t('idHint');
+  $('#sidOk').textContent = t('idOk');
+  $('#sidSkip').textContent = t('idSkip');
+  $('#sidErr').hidden = true;
+  $('#sidInput').value = S.sid;
+  mask.hidden = false;
+  setTimeout(() => $('#sidInput').focus(), 30);
+}
+
+function closeSidModal() { mask.hidden = true; }
+
+$('#sidOk').onclick = () => {
+  const v = $('#sidInput').value.trim();
+  if (!/^[A-Za-z]{2}\d{5}$/.test(v)) {
+    $('#sidErr').textContent = t('idErr');
+    $('#sidErr').hidden = false;
+    return;
+  }
+  S.sid = v.toLowerCase();
+  localStorage.setItem(SID_KEY, S.sid);
+  closeSidModal();
+  paintChrome();
+};
+$('#sidSkip').onclick = closeSidModal;
+$('#sidInput').addEventListener('keydown', e => { if (e.key === 'Enter') $('#sidOk').click(); });
+whoEl.onclick = openSidModal;
+
+/* ── 消息 ─────────────────────────────────────── */
+function addMsg(role, text) {
+  const el = document.createElement('div');
+  el.className = 'msg ' + role;
+  const face = role === 'user'
+    ? `<span>${S.lang === 'en' ? 'You' : '我'}</span>`
+    : `<img src="img/kunkun.jpg" alt="崑崑">`;
+  el.innerHTML = `<div class="who">${face}</div><div class="bubble"></div>`;
+  el.querySelector('.bubble').textContent = text;
+  log.appendChild(el);
+  window.scrollTo({top: document.body.scrollHeight, behavior: 'smooth'});
+  return el.querySelector('.bubble');
+}
+
+function renderCitations(bubble, cites) {
+  if (!cites || !cites.length) return;
+  const box = document.createElement('details');
+  box.className = 'cite';
+  const sum = document.createElement('summary');
+  sum.textContent = `${t('cite')} ${cites.length} · ${t('citeHint')}`;
+  box.addEventListener('toggle', () => {
+    sum.textContent = `${t('cite')} ${cites.length} · ${t(box.open ? 'citeHintOpen' : 'citeHint')}`;
+  });
+  box.appendChild(sum);
+  cites.forEach((c, i) => {
+    const d = document.createElement('div');
+    d.className = 'citeItem';
+    const head = document.createElement('div');
+    const ver = c.uid ? ` · ${c.uid} v${c.revision || 1}` : '';
+    head.innerHTML = `<b>${i + 1}. ${c.source || '—'}</b>`
+      + ` <span class="citeMeta">${c.verified_at ? t('verified') + ' ' + c.verified_at : t('unverified')}${ver}</span>`;
+    d.appendChild(head);
+    const q = document.createElement('div');
+    q.className = 'citeQ';
+    q.textContent = (t('matched') || '') + (c.question || '');
+    d.appendChild(q);
+    if (c.answer) {
+      const a = document.createElement('div');
+      a.className = 'citeA';
+      a.textContent = c.answer;
+      d.appendChild(a);
+    }
+    if (c.source_url) {
+      const l = document.createElement('a');
+      l.href = c.source_url; l.target = '_blank'; l.rel = 'noopener';
+      l.textContent = (t('sourceLink') || 'source') + ' ↗';
+      l.className = 'citeLink';
+      d.appendChild(l);
+    }
+    (c.warnings || []).forEach(w => {
+      const sp = document.createElement('span');
+      sp.className = 'tag'; sp.textContent = '⚠ ' + w;
+      d.appendChild(sp);
+    });
+    box.appendChild(d);
+  });
+  bubble.appendChild(box);
+}
+
+async function sendFeedback(q, ans, mode, vote, note) {
+  try {
+    const r = await fetch('api/feedback', {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({question: q, answer: ans, vote, note: note || '', mode: mode || ''})
+    });
+    return r.ok;
+  } catch (e) { return false; }
+}
+
+function addFeedback(bubble, q, ans, mode) {
+  const row = document.createElement('div');
+  row.className = 'fb';
+  row.innerHTML = `<button>${t('useful')}</button><button>${t('useless')}</button>`;
+  const [up, down] = row.querySelectorAll('button');
+  let voted = false;
+
+  const submit = async (vote, btn) => {
+    if (voted) return;
+    let note = '';
+    if (vote === -1) {
+      const why = S.lang === 'en' ? 'What was wrong? (optional)'
+                : (S.lang === 'zh-Hans' ? '哪里不对？（可以不填）' : '哪裡不對？（可以不填）');
+      const n = prompt(why, '');
+      if (n === null) return;
+      note = n.trim();
+    }
+    voted = true;
+    const ok = await sendFeedback(q, ans, mode, vote, note);
+    if (ok) {
+      row.innerHTML = `<span class="done">${t('thanks')}</span>`;
+    } else {
+      voted = false;
+      const tip = document.createElement('span');
+      tip.className = 'done'; tip.style.color = 'var(--warn)'; tip.textContent = t('fbFail');
+      row.appendChild(tip);
+    }
+  };
+
+  up.onclick = () => submit(1, up);
+  down.onclick = () => submit(-1, down);
+  bubble.appendChild(row);
+}
+
+/* ── 提问 ─────────────────────────────────────── */
+async function ask(text) {
+  if (!text.trim()) return;
+  addMsg('user', text);
+  qEl.value = '';
+  sendBtn.disabled = true;
+  const b = addMsg('ai', t('searching'));
+  try {
+    const r = await fetch('api/ask', {
+      method: 'POST', headers: headers(),
+      body: JSON.stringify({question: text})
+    });
+    if (r.status === 429) {
+      const e = await r.json();
+      b.textContent = e.detail || t('tooMany');
+      return;
+    }
+    const data = await r.json();
+    b.textContent = data.answer || JSON.stringify(data);
+    if ((data.mode || '').startsWith('fallback')) b.classList.add('fail');
+    renderCitations(b, data.citations);
+    addFeedback(b, text, b.textContent, data.mode);
+    if (data.quota && data.quota.llm_left === 0) {
+      const tip = document.createElement('div');
+      tip.className = 'cite';
+      tip.textContent = t('quotaTip');
+      b.appendChild(tip);
+    }
+  } catch (e) {
+    b.textContent = t('reqFail') + e;
+  } finally {
+    sendBtn.disabled = false;
+    qEl.focus();
+  }
+}
+
+sendBtn.onclick = () => ask(qEl.value);
+qEl.addEventListener('keydown', e => { if (e.key === 'Enter') ask(qEl.value); });
+
+/* ── 启动 ─────────────────────────────────────── */
+paintChrome();
+if (!S.sid) openSidModal();
+(async () => {
+  try {
+    const me = await (await fetch('api/me', {headers: headers()})).json();
+    if (!S.sid && me.student_id && me.student_id !== 'UC000000') {
+      S.sid = me.student_id; localStorage.setItem(SID_KEY, S.sid); paintChrome();
+    }
+  } catch (e) { /* 忽略 */ }
+})();
+qEl.focus();
+</script>
+</body>
+</html>

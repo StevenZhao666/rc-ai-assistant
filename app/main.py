@@ -26,7 +26,7 @@ from .upload import router as upload_router
 from .review import router as review_router
 from .review import set_reload
 
-app = FastAPI(title="RC AI Assistant", version="0.1.0")
+app = FastAPI(title="RC AI Assistant", version="0.2.0")
 app.include_router(review_router)
 app.include_router(admin_router)
 app.include_router(upload_router)

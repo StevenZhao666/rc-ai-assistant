@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>崑崑 · 方案 A｜靜謐紙本</title>
+<style>
+  :root{
+    --paper:#F6F1E9; --paper-2:#FFFDF8; --ink:#1B1917; --ink-2:#5A544C;
+    --ink-3:#8C857A; --red:#8C1220; --line:#DFD4C3; --line-2:#EDE5D8;
+    --serif:"Source Han Serif TC","Noto Serif TC","Songti TC",SimSun,serif;
+    --sans:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;
+    --mono:"Cascadia Mono",Consolas,"SF Mono",monospace;
+  }
+  *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+  html,body{margin:0}
+  body{
+    background:var(--paper); color:var(--ink); font-family:var(--sans);
+    font-size:15px; line-height:1.78;
+    background-image:radial-gradient(circle at 18% 0%,rgba(140,18,32,.045),transparent 46%);
+  }
+  /* ── 頂欄 ── */
+  header{
+    position:sticky; top:0; z-index:8; background:rgba(246,241,233,.92);
+    backdrop-filter:blur(8px); border-bottom:1px solid var(--line);
+  }
+  .bar{max-width:720px;margin:0 auto;padding:14px 22px;
+       display:flex;align-items:baseline;gap:14px}
+  .mark{font-family:var(--serif);font-size:19px;letter-spacing:.12em;color:var(--red);font-weight:600}
+  .mark small{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--ink-3);
+              margin-left:10px;font-weight:400;vertical-align:2px}
+  .bar .sp{flex:1}
+  .sid{font-family:var(--mono);font-size:11.5px;letter-spacing:.06em;color:var(--ink-2);
+       border:1px solid var(--line);padding:3px 9px;border-radius:2px;background:var(--paper-2);cursor:pointer}
+  .sid b{color:var(--red);font-weight:600}
+  .langs{display:flex;gap:0;font-family:var(--mono);font-size:11px;letter-spacing:.1em}
+  .langs span{padding:2px 7px;color:var(--ink-3);cursor:pointer}
+  .langs .on{color:var(--red);border-bottom:1px solid var(--red)}
+
+  main{max-width:720px;margin:0 auto;padding:0 22px 190px}
+
+  /* ── 卷首 ── */
+  .kicker{display:flex;align-items:center;gap:10px;margin:30px 0 18px;
+          font-family:var(--mono);font-size:10.5px;letter-spacing:.22em;color:var(--ink-3)}
+  .kicker::after{content:"";flex:1;height:1px;background:var(--line)}
+  .lead{font-family:var(--serif);font-size:26px;line-height:1.55;letter-spacing:.04em;margin:0 0 6px}
+  .lead em{font-style:normal;color:var(--red)}
+  .sub{font-size:13px;color:var(--ink-3);letter-spacing:.02em;margin:0 0 26px}
+
+  /* ── 問答 ── */
+  .turn{margin:0 0 30px;animation:rise .5s cubic-bezier(.22,1,.36,1) both}
+  @keyframes rise{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+
+  .q{display:flex;gap:12px;align-items:flex-start;margin-bottom:20px}
+  .q .n{font-family:var(--mono);font-size:10.5px;color:var(--red);letter-spacing:.1em;padding-top:5px}
+  .q p{margin:0;font-size:15.5px;letter-spacing:.01em}
+
+  .a{position:relative;padding-left:44px}
+  .a::before{content:"";position:absolute;left:43px;top:2px;bottom:2px;width:1px;background:var(--line-2)}
+  .a .body{font-size:15.5px;letter-spacing:.01em}
+  .a .body p{margin:0 0 12px}
+  .a .body b{font-weight:600;border-bottom:1px solid rgba(140,18,32,.28);padding-bottom:1px}
+
+  .who{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+  .who .av{width:24px;height:24px;border-radius:50%;overflow:hidden;border:1px solid var(--line)}
+  .who .av img{width:100%;height:100%;object-fit:cover;display:block}
+  .who span{font-family:var(--mono);font-size:10.5px;letter-spacing:.18em;color:var(--ink-3)}
+
+  /* ── 引用 ── */
+  .cite{margin-top:18px;border-top:1px solid var(--line);padding-top:12px}
+  .cite-h{display:flex;align-items:center;gap:8px;font-family:var(--mono);
+          font-size:10.5px;letter-spacing:.16em;color:var(--ink-3);cursor:pointer}
+  .cite-h .no{color:var(--red)}
+  .cite-i{margin-top:10px;padding:12px 14px;background:var(--paper-2);
+          border-left:2px solid var(--red);border-radius:0 3px 3px 0}
+  .cite-i .src{font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;color:var(--ink-3)}
+  .cite-i q{display:block;margin:6px 0 0;font-size:13px;color:var(--ink-2);line-height:1.7}
+
+  /* ── 反饋 ── */
+  .fb{display:flex;align-items:center;gap:16px;margin-top:16px}
+  .fb button{font-family:var(--mono);font-size:10.5px;letter-spacing:.14em;
+             background:none;border:0;padding:0;color:var(--ink-3);cursor:pointer;
+             border-bottom:1px solid transparent;transition:.18s}
+  .fb button:hover{color:var(--red);border-bottom-color:var(--red)}
+  .fb .note{font-family:var(--mono);font-size:10px;letter-spacing:.12em;color:var(--ink-3);opacity:.75;margin-left:auto}
+
+  /* ── 輸入區 ── */
+  .dock{position:fixed;left:0;right:0;bottom:0;z-index:9;
+        background:linear-gradient(to top,var(--paper) 62%,rgba(246,241,233,0))}
+  .chips{max-width:720px;margin:0 auto;padding:0 22px 10px;display:flex;gap:8px;overflow:auto;
+         scrollbar-width:none}
+  .chips::-webkit-scrollbar{display:none}
+  .chip{white-space:nowrap;font-size:12.5px;color:var(--ink-2);background:var(--paper-2);
+        border:1px solid var(--line);border-radius:999px;padding:6px 13px;cursor:pointer;transition:.18s}
+  .chip:hover{border-color:var(--red);color:var(--red)}
+  .composer{max-width:720px;margin:0 auto 18px;padding:0 22px}
+  .field{display:flex;align-items:center;gap:10px;background:var(--paper-2);
+         border:1px solid var(--line);border-radius:4px;padding:4px 4px 4px 14px;
+         box-shadow:0 1px 0 rgba(27,25,23,.03)}
+  .field:focus-within{border-color:var(--red);box-shadow:0 0 0 3px rgba(140,18,32,.07)}
+  .field input{flex:1;border:0;background:none;outline:none;font:inherit;font-size:15px;
+               color:var(--ink);padding:9px 0}
+  .field input::placeholder{color:var(--ink-3)}
+  .send{width:38px;height:38px;border:0;border-radius:3px;background:var(--red);color:#fff;
+        cursor:pointer;display:grid;place-items:center;transition:.18s}
+  .send:hover{background:#730e1a}
+  .foot{max-width:720px;margin:0 auto;padding:0 22px 14px;display:flex;justify-content:space-between;
+        font-family:var(--mono);font-size:10px;letter-spacing:.1em;color:var(--ink-3)}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <div class="mark">崑崑<small>ASSISTANT</small></div>
+    <div class="sp"></div>
+    <div class="langs"><span class="on">繁</span><span>简</span><span>EN</span></div>
+    <div class="sid">學號 <b>UC59361</b></div>
+  </div>
+</header>
+
+<main>
+  <div class="kicker">張崑崙書院 · 問答</div>
+  <h1 class="lead">書院的事，<em>問崑崑</em>。</h1>
+  <p class="sub">回答只取自審核過的書院文件，並附出處。測試版，資料持續校對中。</p>
+
+  <div class="turn">
+    <div class="q"><div class="n">Q.01</div><p>宿舍幾點關門？遲了怎麼辦？</p></div>
+    <div class="a">
+      <div class="who"><div class="av"><img src="../../app/static/img/kunkun.jpg" alt=""></div><span>崑崑</span></div>
+      <div class="body">
+        <p>書院宿舍大門每日 <b>00:00</b> 關閉，翌日 <b>06:00</b> 開放。逾時返回需在閘機刷學生證登記，系統會通知樓層導師。</p>
+        <p>如因實驗、實習或交通延誤，可於當日 23:00 前在書院系統提交《晚歸報備》，獲批後不計入紀錄。</p>
+      </div>
+      <div class="cite">
+        <div class="cite-h"><span class="no">[1]</span> 學生手冊 · 住宿規定 §4.2 <span style="margin-left:auto">展開</span></div>
+        <div class="cite-i">
+          <div class="src">KHUN-KB-0042 · 2026 版</div>
+          <q>宿舍大門於每日零時關閉，六時開放。逾時返回者須登記，並由導師跟進；一學期累計三次者，書院得約談。</q>
+        </div>
+      </div>
+      <div class="fb">
+        <button>有幫助</button><button>不準確</button>
+        <span class="note">AI 生成 · 僅供參考</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="turn">
+    <div class="q"><div class="n">Q.02</div><p>洗衣房怎麼預約？</p></div>
+    <div class="a">
+      <div class="who"><div class="av"><img src="../../app/static/img/kunkun.jpg" alt=""></div><span>崑崑</span></div>
+      <div class="body">
+        <p>洗衣房位於 <b>W12 一樓</b>，透過「CKLC 生活」小程序預約 90 分鐘時段，每人每週上限 3 次。</p>
+      </div>
+      <div class="fb"><button>有幫助</button><button>不準確</button>
+        <span class="note">AI 生成 · 僅供參考</span></div>
+    </div>
+  </div>
+</main>
+
+<div class="dock">
+  <div class="chips">
+    <div class="chip">訪客可以留宿嗎</div>
+    <div class="chip">打印機在哪</div>
+    <div class="chip">獎學金申請時間</div>
+    <div class="chip">健身室開放</div>
+  </div>
+  <div class="composer">
+    <div class="field">
+      <input id="q" placeholder="問崑崑任何書院的事…">
+      <button class="send" aria-label="送出">
+        <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2 8h11M9 4l4 4-4 4" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="foot"><span>張崑崙書院 · 澳門大學</span><span>每小時 10 次提問</span></div>
+</div>
+</body>
+</html>
