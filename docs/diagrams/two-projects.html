@@ -78,7 +78,7 @@
   <h1>崑崑問答 × 書院資料庫</h1>
   <p class="lede">
     兩個子專案跑在同一台 2C4G 主機、同一個 FastAPI 進程、同一個 SQLite 檔裡。
-    真正分開的是<b>資料表</b>與<b>使用路徑</b>；真正共用的是<b>底座</b>（資料庫連線、身分、雙語）。
+    真正分開的是<b>主數據表</b>與<b>使用路徑</b>；真正共用的是<b>底座</b>（資料庫連線、身分、雙語）。
     三張圖按軟體工程常用圖種畫：邊界 → 依賴 → 資料流。
   </p>
   <div class="meta">rc-ai-assistant · v0.2.0 · 依 2026-11 本機與線上實況 · 所有節點皆可在 repo 中找到對應檔案</div>
@@ -136,7 +136,7 @@
     <text class="t-sm" x="298" y="478">共用底座</text>
     <text class="m-a" x="298" y="494">SHARED · 兩個子專案都依賴它</text>
     <text class="d" x="298" y="516"><tspan class="m">db.py</tspan> 同一個 <tspan class="m">data/kb.sqlite3</tspan>　·　<tspan class="m">auth.py</tspan> REVIEWERS 與學號　·　<tspan class="m">i18n.py</tspan> 繁簡英</text>
-    <text class="d" x="298" y="536">共用不等於共用表：問答讀 <tspan class="m">kb_item</tspan>，資料庫讀 <tspan class="m">library_item</tspan></text>
+    <text class="d" x="298" y="536">主數據表分開：問答讀 <tspan class="m">kb_item</tspan>，資料庫讀 <tspan class="m">library_item</tspan>；流程表共用（candidate、review_log）</text>
 
     <!-- 邊界內底部：離線腳本 -->
     <rect class="bx-x" x="278" y="682" width="300" height="66" rx="10"/>
@@ -196,7 +196,7 @@
 <section class="figure" id="fig2">
   <div class="fhead"><span class="fnum">圖 02</span><h2>模組依賴圖</h2></div>
   <p class="fq"><b>這張圖回答：</b>從程式碼看，誰依賴誰？哪條依賴是「共用」，哪條是「耦合」？</p>
-  <p class="how">讀圖方法：箭頭 = 呼叫／引用；粗紅虛線 = 跨子專案唯一的一條線（HTTP 介面）；底部橫條 = 兩個子專案都依賴的底座。</p>
+  <p class="how">讀圖方法：箭頭 = 呼叫／引用；粗紅虛線 = 跨子項目的 HTTP 呼叫（代碼不互相 import）；底部橫條 = 兩個子專案都依賴的底座。</p>
 
   <div class="canvas">
   <svg viewBox="0 0 1200 720" role="img" aria-label="模組依賴圖">
@@ -275,7 +275,7 @@
     <path class="ln-a" d="M830,281 L702,281" marker-end="url(#ar2a)"/>
     <path class="ln-a" d="M830,367 L770,367 L770,340 L702,340" marker-end="url(#ar2a)"/>
     <text class="m-a" x="830" y="426">HTTP 呼叫 /api/search，不直連 DB</text>
-    <text class="d-sm" x="120" y="678">兩者互不 import；MCP 也不 import 任何業務模組</text>
+    <text class="d-sm" x="120" y="678">兩者互不 import；MCP 也不 import 業務模組；共用同一個 DB 與底座</text>
 
     <text class="m" x="60" y="700">箭頭 = import / 呼叫；紅線 = 跨子專案唯一介面；虛線框 = 外部</text>
   </svg>
