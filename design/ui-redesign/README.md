@@ -58,8 +58,22 @@ python design/ui-redesign/preview_server.py     # → http://127.0.0.1:8002/
 
 `build-final.py` 结束会逐条打印 16 个 id 的存在检查，任何一个 MISSING 就说明改坏了。
 
-## 验收清单（替换源码前必须全过）
+## 介绍视频
 
+`media/video/` 下：
+
+| 文件 | 说明 |
+|---|---|
+| `kunkun-intro-1080x1920.mp4` | 成片：1080×1920 / 30fps / 34s / 2.3MB |
+| `render_intro.py` | Pillow 逐帧渲染器；改 `BEATS` 里的时间轴即可调节奏 |
+| `ui-home.png` / `ui-cite.png` | 从 `:8001` 真实页面截的底图（非重绘） |
+| `contact.png` | 10 帧抽样拼版，改完先看这个 |
+
+结构：`01 結構`（學生端 → /api/ask → BM25 → 模型鏈 → 答案+出處）／`02 效果`（首屏、引用卡近景、规格数字）。
+
+坑：**`goto_url` 之后 device metrics 会被重置**，页面会按默认宽度渲染，量出来的 DOM 坐标全错。截图前必须重设 `Emulation.setDeviceMetricsOverride` 并断言 `window.innerWidth === 420`。另外 Consolas 不能渲染中文，会出豆腐块，中文标签一律走 `cn_track()` + 微軟正黑體。
+
+## 验收清单（替换源码前必须全过）
 - [ ] 16 个 id 全在
 - [ ] 420 / 360 宽无横向溢出，标题不截断
 - [ ] 真实问答：答案 + 引用卡 + 👍👎 都正常

@@ -27,3 +27,6 @@ data/*.pdf
 deliverables/
 data/files/
 data/upload.log
+
+# 视频渲染中間帧（可重新生成，172MB）
+media/video/frames/
