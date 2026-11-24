@@ -58,6 +58,25 @@ def upload(title, author="測試", contact_public="1"):
         return json.loads(r.read())
 
 
+def _cleanup(reviewer="uc99999"):
+    """把测试造出来的条目下架，避免污染公网资料库。"""
+    import json as _json
+    import urllib.request as _u
+    try:
+        lib = _json.loads(_u.urlopen(BASE + "/api/library?limit=200", timeout=20).read())
+    except Exception:
+        return
+    marks = ("審核測試", "公开测试", "公開測試", "私密聯絡", "MCP測試", "限流")
+    for it in lib.get("items", []):
+        if not str(it.get("title", "")).startswith(marks):
+            continue
+        try:
+            req = _u.Request(f"{BASE}/api/review/library/{it['id']}/archive", data=b"{}", method="POST",
+                             headers={"Content-Type": "application/json", "X-Reviewer": reviewer})
+            _u.urlopen(req, timeout=20).read()
+        except Exception:
+            pass
+
 def main():
     a = upload("審核測試 A", contact_public="1")
     b = upload("審核測試 B", contact_public="0")
@@ -111,6 +130,8 @@ def main():
     code, lib3 = call("/api/library")
     item_c = next((x for x in lib3.get("items", []) if x["title"] == "審核測試 C"), {})
     check("没勾公开：公开接口不带邮箱", bool(item_c) and "contact" not in item_c, str(item_c)[:100])
+    _cleanup()
+
     print(f"\n{PASS} pass / {FAIL} fail / {PASS + FAIL} total")
     sys.exit(1 if FAIL else 0)
 

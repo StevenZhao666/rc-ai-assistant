@@ -68,6 +68,25 @@ def approve(cid):
                 {"action": "approve", "note": ""}, {"X-Reviewer": REV})
 
 
+def _cleanup(reviewer="uc99999"):
+    """把测试造出来的条目下架，避免污染公网资料库。"""
+    import json as _json
+    import urllib.request as _u
+    try:
+        lib = _json.loads(_u.urlopen(BASE + "/api/library?limit=200", timeout=20).read())
+    except Exception:
+        return
+    marks = ("審核測試", "公开测试", "公開測試", "私密聯絡", "MCP測試", "限流")
+    for it in lib.get("items", []):
+        if not str(it.get("title", "")).startswith(marks):
+            continue
+        try:
+            req = _u.Request(f"{BASE}/api/review/library/{it['id']}/archive", data=b"{}", method="POST",
+                             headers={"Content-Type": "application/json", "X-Reviewer": reviewer})
+            _u.urlopen(req, timeout=20).read()
+        except Exception:
+            pass
+
 def main():
     a = upload("公開測試作品甲", kind="work")
     b = upload("公開測試網站乙", kind="link")
@@ -111,6 +130,8 @@ def main():
     code, page = call("/library")
     body = page if isinstance(page, str) else json.dumps(page, ensure_ascii=False)
     check("浏览页可打开", code == 200 and ("書院資料庫" in body or "college" in body.lower()), str(code))
+
+    _cleanup()
 
     print(f"\n{PASS} pass / {FAIL} fail / {PASS + FAIL} total")
     sys.exit(1 if FAIL else 0)

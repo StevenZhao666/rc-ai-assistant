@@ -12,6 +12,8 @@ from mcp import ClientSession
 from mcp.client.stdio import StdioServerParameters, stdio_client
 
 ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "tests"))
+from test_mcp import _archive, _make_fixture  # noqa: E402
 PASS = FAIL = 0
 
 
@@ -34,6 +36,18 @@ def payload(res):
 
 
 async def main():
+    fixture = None
+    try:
+        import json as _j
+        import urllib.request as _u
+        base = os.environ.get("RC_AI_BASE", "http://127.0.0.1:8001").rstrip("/")
+        total = _j.loads(_u.urlopen(base + "/api/files?limit=1", timeout=20).read()).get("total", 0)
+        if total == 0:
+            print("[info] 资料库为空，先造一条 fixture")
+            fid, reviewer, base_url = _make_fixture()
+            fixture = (fid, reviewer, base_url)
+    except Exception as e:                                      # noqa: BLE001
+        print(f"[warn] fixture 准备失败：{e}")
     params = StdioServerParameters(
         command=sys.executable, args=[str(ROOT / "mcp_files_server.py")],
         env={**os.environ, "RC_AI_BASE": os.environ.get("RC_AI_BASE", "http://127.0.0.1:8001")})
@@ -48,7 +62,8 @@ async def main():
             first = (d.get("items") or [{}])[0]
             check("结果带下载地址", str(first.get("url", "")).startswith("http"), str(first.get("url")))
 
-            d2 = payload(await s.call_tool("search_files", {"query": first.get("name", "")[:2]}))
+            q = "md" if str(first.get("name", "")).endswith(".md") else str(first.get("name", ""))[:3]
+            d2 = payload(await s.call_tool("search_files", {"query": q}))
             check("search_files 能按名字搜", d2.get("total", 0) > 0, str(d2)[:160])
 
             one = payload(await s.call_tool("get_file", {"file_id": first.get("file_id")}))
