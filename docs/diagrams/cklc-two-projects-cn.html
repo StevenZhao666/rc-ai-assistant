@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>崑崑问答 × CKLCdb · 关系与接口</title>
+<style>
+  :root{
+    --ink:#1f1a18; --dim:#6d625d; --line:#d8cdc7; --red:#8a1420; --red2:#b32633;
+    --bg:#fbf8f6; --card:#fff; --ok:#2f6b4f; --warn:#8a6100; --grey:#f1ebe7;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+       font:14px/1.6 "Microsoft YaHei","PingFang SC",system-ui,sans-serif;padding:28px 26px 50px}
+  h1{font-size:21px;margin:0 0 2px}
+  .sub{color:var(--dim);font-size:12.5px;margin:0 0 22px}
+  figure{margin:0 0 34px;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px 14px}
+  figcaption{font-size:12px;color:var(--dim);margin-top:10px}
+  figcaption b{color:var(--red)}
+  .figT{font-size:15px;font-weight:700;margin:0 0 12px}
+  .figT span{font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--dim);margin-left:8px;letter-spacing:.08em}
+
+  /* 图1 */
+  .boundary{position:relative;border:1.5px dashed var(--red);border-radius:12px;padding:16px 16px 12px;background:#fffdfc}
+  .btag{position:absolute;top:-10px;left:16px;background:#fff;padding:0 8px;font-size:11.5px;color:var(--red);font-weight:700}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .proj{border:1px solid var(--line);border-radius:10px;padding:12px 14px;background:#fff}
+  .proj h3{margin:0 0 6px;font-size:14px}
+  .proj h3 em{font-style:normal;font-family:ui-monospace,Consolas,monospace;font-size:11px;color:var(--dim);margin-left:6px}
+  .proj ul{margin:6px 0 0;padding-left:16px;color:#3c3431;font-size:12.5px}
+  .proj li{margin:3px 0}
+  .tag{display:inline-block;font-size:10.5px;border-radius:999px;padding:1px 7px;margin-left:6px;vertical-align:1px}
+  .tA{background:#fdecee;color:var(--red)}
+  .tB{background:#eaf3ee;color:var(--ok)}
+  .base{margin-top:14px;border:1px solid var(--line);background:var(--grey);border-radius:10px;padding:10px 14px;font-size:12.5px}
+  .base b{color:var(--red)}
+  .outside{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;font-size:11.5px;color:var(--dim)}
+  .chip{border:1px dashed var(--line);border-radius:999px;padding:3px 10px;background:#fff}
+
+  /* 图2 流程 */
+  .flow{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;align-items:stretch}
+  .step{border:1px solid var(--line);border-radius:10px;padding:10px 11px;background:#fff;position:relative}
+  .step .n{font-family:ui-monospace,Consolas,monospace;font-size:10px;color:var(--red);letter-spacing:.1em}
+  .step h4{margin:2px 0 4px;font-size:13px}
+  .step p{margin:0;font-size:11.5px;color:var(--dim)}
+  .arrow{display:flex;align-items:center;justify-content:center;color:var(--red);font-size:20px}
+  .note{margin-top:10px;font-size:11.5px;color:var(--dim)}
+  .note code{background:var(--grey);border-radius:4px;padding:1px 5px;font-size:11px}
+
+  /* 图3 接口 */
+  .cols{display:grid;grid-template-columns:1.25fr 1fr;gap:16px}
+  table{width:100%;border-collapse:collapse;font-size:12px}
+  th,td{text-align:left;border-bottom:1px solid var(--line);padding:6px 4px;vertical-align:top}
+  th{color:var(--dim);font-weight:600;font-size:11px;letter-spacing:.04em}
+  code{font-family:ui-monospace,Consolas,monospace;font-size:11.5px;color:#7a1b26}
+  .pill{font-size:10.5px;border-radius:999px;padding:0 7px;white-space:nowrap}
+  .p-ok{background:#e8f4ec;color:var(--ok)}
+  .p-warn{background:#fdf1dc;color:var(--warn)}
+  .p-miss{background:#fde8ea;color:var(--red)}
+  .box{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff}
+  .box h4{margin:0 0 6px;font-size:13px}
+  .box ul{margin:0;padding-left:16px;font-size:12px;color:#3c3431}
+  .box li{margin:4px 0}
+  .mcp{border-color:#c9e2d3;background:#f7fdf9}
+</style>
+</head>
+<body>
+
+<h1>崑崑问答 × CKLCdb：边界、联系与接口</h1>
+<p class="sub">简体版 · 事实以仓库代码与线上端点为准 · 名字保留繁体（張崑崙 / 崑崑）</p>
+
+<!-- 图 1 -->
+<figure>
+  <p class="figT">图 1 · 系统边界 <span>FIG 01 / BOUNDARY</span></p>
+  <div class="boundary">
+    <span class="btag">同一台服务器 · 2C4G · Apache 反代 /ai → uvicorn 8091</span>
+    <div class="row">
+      <div class="proj">
+        <h3>A · 崑崑问答<span class="tag tA">读 kb_item / chunk</span></h3>
+        <ul>
+          <li>页面：<code>/</code></li>
+          <li>路由：<code>/api/ask</code>、<code>/api/search</code>、<code>/api/qa/{id}</code></li>
+          <li>链路：检索 → 生成 → 带 <code>[n]</code> 引用</li>
+        </ul>
+      </div>
+      <div class="proj">
+        <h3>B · CKLCdb 资料库<span class="tag tB">读写 library_item / upload_file</span></h3>
+        <ul>
+          <li>页面：<code>/library</code>、<code>/upload</code>、<code>/review?tab=uploads</code></li>
+          <li>路由：<code>/api/library</code>、<code>/api/files</code>、<code>/api/upload</code>、<code>/api/review/*</code></li>
+          <li>链路：投稿 → 审核 → 上架 → 浏览 / 下载 / 检索</li>
+        </ul>
+      </div>
+    </div>
+    <div class="base">
+      <b>共用底座</b>：<code>db.py</code>（连接 / 迁移 / 检索）、<code>auth.py</code>（REVIEWERS）、<code>i18n.py</code>、<code>config.py</code>；
+      <b>同一个 SQLite 文件</b> <code>data/kb.sqlite3</code>。
+      主数据表分开（<code>kb_item</code> / <code>library_item</code>），流程表共用（<code>candidate</code>、<code>review_log</code>）。
+    </div>
+    <div class="outside">
+      <span class="chip">外部：学生 / 审核人</span>
+      <span class="chip">外部：MCP 客户端</span>
+      <span class="chip">外部：LLM API（HTTPS）</span>
+      <span class="chip">外部：书院官网（抓取）</span>
+    </div>
+  </div>
+  <figcaption><b>读法：</b>虚线大框是一个部署单元，里面并排放两个子项目，底条是两者都依赖的共用层。它们<b>不互相 import</b>，但共享同一个进程、同一份数据库。</figcaption>
+</figure>
+
+<!-- 图 2 -->
+<figure>
+  <p class="figT">图 2 · CKLCdb 数据流 <span>FIG 02 / DATA FLOW</span></p>
+  <div class="flow">
+    <div class="step"><div class="n">01</div><h4>投稿</h4><p><code>/upload</code><br>邀请码 <code>UPLOAD_CODE</code>，必填邮箱，可勾选公开</p></div>
+    <div class="step"><div class="n">02</div><h4>候选池</h4><p><code>candidate</code> 表<br>状态 <code>pending</code>；文件落 <code>data/files</code></p></div>
+    <div class="step"><div class="n">03</div><h4>审核</h4><p><code>/review?tab=uploads</code><br>通过 / 退回（退回必写理由），记 <code>review_log</code></p></div>
+    <div class="step"><div class="n">04</div><h4>上架</h4><p><code>library_item</code> + <code>upload_file</code><br>状态 <code>published</code>；带 <code>contact_public</code></p></div>
+    <div class="step"><div class="n">05</div><h4>对外</h4><p><code>/library</code> 浏览<br><code>/files/…</code> 下载<br><code>/api/search</code> 检索</p></div>
+  </div>
+  <p class="note">旁路：<code>/api/review/library/{id}/archive</code> 可下架（不删行、不删文件）。版本契约已建（<code>uid</code> / <code>revision</code> / <code>content_hash</code>），目前还没有内容修订，所以历史表为空。</p>
+  <figcaption><b>读法：</b>从左到右四步都在 B 内部；只有第 5 步对外。问答库的检索不读这条链，两者只在 <code>/api/search</code> 这一层汇合。</figcaption>
+</figure>
+
+<!-- 图 3 -->
+<figure>
+  <p class="figT">图 3 · 对外接口现状 <span>FIG 03 / INTERFACES</span></p>
+  <div class="cols">
+    <div>
+      <table>
+        <tr><th>类型</th><th>接口</th><th>状态</th></tr>
+        <tr><td>读</td><td><code>GET /api/search</code>、<code>/api/library</code>、<code>/api/files</code></td><td><span class="pill p-ok">线上</span></td></tr>
+        <tr><td>读</td><td><code>GET /api/qa/{id}</code>、<code>/api/clauses</code>、<code>/api/clause</code></td><td><span class="pill p-ok">线上</span></td></tr>
+        <tr><td>读</td><td><code>GET /api/updates?since=</code></td><td><span class="pill p-ok">线上</span></td></tr>
+        <tr><td>写</td><td><code>POST /api/upload</code>（邀请码）</td><td><span class="pill p-ok">线上</span></td></tr>
+        <tr><td>写</td><td><code>POST /api/review/uploads/{id}/decide</code></td><td><span class="pill p-warn">仅 X-Reviewer 头</span></td></tr>
+        <tr><td>写</td><td><code>POST /api/review/library/{id}/archive</code></td><td><span class="pill p-warn">仅 X-Reviewer 头</span></td></tr>
+        <tr><td>写</td><td>API Key / 按项目配额 / 写 MCP</td><td><span class="pill p-miss">未做</span></td></tr>
+      </table>
+      <p class="note">缺口按风险排：① <code>X-Reviewer</code> 可伪造；② 全站 HTTP，无 HTTPS；③ 无 per-client 配额。</p>
+    </div>
+    <div class="box mcp">
+      <h4>MCP（只读，已上线）</h4>
+      <ul>
+        <li><code>/ai/mcp</code> · 5 个工具<br>search_kb / search_clauses / get_item / get_clause / list_updates</li>
+        <li><code>/ai/mcp-files</code> · 3 个工具<br>search_files / get_file / list_files</li>
+        <li>传输：Streamable HTTP；MCP 服务只打 HTTP，不 import 业务模块</li>
+        <li>无身份，按 IP 限速 60 次/分</li>
+      </ul>
+    </div>
+  </div>
+  <figcaption><b>读法：</b>左边是 HTTP 面，右边是 MCP 面。两边的"读"都齐了；"写"只有人能走，机器还不能。</figcaption>
+</figure>
+
+</body>
+</html>
