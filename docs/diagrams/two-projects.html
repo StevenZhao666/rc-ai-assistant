@@ -1,0 +1,431 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<title>崑崑問答 × 書院資料庫 · 關係圖</title>
+<style>
+  :root{
+    --ink:#1F1715; --ink2:#4E423E; --muted:#786A65; --line:#E7E0DA;
+    --accent:#8C1220; --paper:#FBF8F5; --card:#FFFFFF; --soft:#F6F1EC;
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--paper); color:var(--ink);
+    font-family:"Microsoft JhengHei","PingFang TC","Noto Sans TC",sans-serif;
+    font-size:15px; line-height:1.7;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1280px;margin:0 auto;padding:48px 40px 90px}
+  header.top{border-bottom:1px solid var(--line);padding-bottom:26px;margin-bottom:8px}
+  .kicker{font-family:Consolas,monospace;font-size:11px;letter-spacing:.18em;color:var(--accent)}
+  h1{font-size:32px;line-height:1.35;margin:10px 0 8px;letter-spacing:.01em}
+  .lede{color:var(--ink2);font-size:15.5px;max-width:860px}
+  .meta{margin-top:16px;font-family:Consolas,monospace;font-size:11.5px;color:var(--muted);letter-spacing:.04em}
+
+  section.figure{margin-top:56px;border-top:1px solid var(--line);padding-top:34px}
+  .fhead{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .fnum{font-family:Consolas,monospace;font-size:12px;letter-spacing:.16em;color:var(--accent);
+        border:1px solid rgba(140,18,32,.28);border-radius:999px;padding:3px 11px}
+  h2{font-size:23px;margin:0;letter-spacing:.01em}
+  .fq{margin:12px 0 4px;font-size:15px;color:var(--ink2)}
+  .fq b{color:var(--accent);font-weight:600}
+  .how{margin:0 0 22px;font-size:13.5px;color:var(--muted)}
+
+  .canvas{background:var(--card);border:1px solid var(--line);border-radius:16px;
+          padding:18px;box-shadow:0 10px 34px -30px rgba(60,30,28,.55)}
+  svg{display:block;width:100%;height:auto}
+
+  /* SVG 文字 */
+  .t{font-size:14px;font-weight:600;fill:var(--ink)}
+  .t-sm{font-size:12.5px;font-weight:600;fill:var(--ink)}
+  .d{font-size:12px;fill:var(--ink2)}
+  .d-sm{font-size:11px;fill:var(--muted)}
+  .m{font-family:Consolas,monospace;font-size:10.5px;fill:var(--muted);letter-spacing:.05em}
+  .m-a{font-family:Consolas,monospace;font-size:10.5px;fill:var(--accent);letter-spacing:.05em}
+  .bx{fill:#fff;stroke:var(--line);stroke-width:1.5}
+  .bx-a{fill:#FDF8F8;stroke:#C98A93;stroke-width:1.5}
+  .bx-s{fill:var(--soft);stroke:#DED3CA;stroke-width:1.5}
+  .bx-x{fill:#fff;stroke:#C6BBB4;stroke-width:1.4;stroke-dasharray:5 4}
+  .zone{fill:none;stroke:rgba(140,18,32,.20);stroke-width:1.2;stroke-dasharray:5 4}
+  .sys{fill:rgba(140,18,32,.022);stroke:rgba(140,18,32,.36);stroke-width:2;stroke-dasharray:9 6}
+  .ln{stroke:#C9BDB6;stroke-width:1.4;fill:none}
+  .ln-a{stroke:var(--accent);stroke-width:1.6;fill:none}
+  .ln-d{stroke:#B9A9A3;stroke-width:1.4;fill:none;stroke-dasharray:5 4}
+
+  .legend{margin:14px 0 0;display:flex;gap:22px;flex-wrap:wrap;font-size:12.5px;color:var(--muted)}
+  .legend i{display:inline-block;width:22px;height:0;border-top:2px solid var(--line);vertical-align:middle;margin-right:7px}
+  .legend i.a{border-top:2px solid var(--accent)}
+  .legend i.d{border-top:2px dashed #B9A9A3}
+
+  .note{margin-top:18px;display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .card{background:#fff;border:1px solid var(--line);border-left:2px solid var(--accent);
+        border-radius:0 10px 10px 0;padding:14px 16px}
+  .card h3{margin:0 0 6px;font-size:13px;letter-spacing:.06em;color:var(--accent)}
+  .card p{margin:0;font-size:13px;color:var(--ink2);line-height:1.72}
+  .card code{font-family:Consolas,monospace;font-size:12px;color:var(--ink);
+             background:var(--soft);padding:1px 5px;border-radius:4px}
+
+  footer.end{margin-top:52px;border-top:1px solid var(--line);padding-top:20px;
+             font-size:12.5px;color:var(--muted);line-height:1.9}
+  @media print{ body{background:#fff} .canvas{box-shadow:none} section.figure{page-break-inside:avoid} }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="kicker">CKLC · RC AI ASSISTANT · 系統關係</div>
+  <h1>崑崑問答 × 書院資料庫</h1>
+  <p class="lede">
+    兩個子專案跑在同一台 2C4G 主機、同一個 FastAPI 進程、同一個 SQLite 檔裡。
+    真正分開的是<b>資料表</b>與<b>使用路徑</b>；真正共用的是<b>底座</b>（資料庫連線、身分、雙語）。
+    三張圖按軟體工程常用圖種畫：邊界 → 依賴 → 資料流。
+  </p>
+  <div class="meta">rc-ai-assistant · v0.2.0 · 依 2026-11 本機與線上實況 · 所有節點皆可在 repo 中找到對應檔案</div>
+</header>
+
+<!-- ══════════════ 圖 1 ══════════════ -->
+<section class="figure" id="fig1">
+  <div class="fhead"><span class="fnum">圖 01</span><h2>系統邊界圖</h2></div>
+  <p class="fq"><b>這張圖回答：</b>哪些東西屬於這個系統，哪些在外面？兩個子專案是怎麼被裝進同一個盒子裡的？</p>
+  <p class="how">讀圖方法：虛線大框 = 一個部署單元；框內兩個虛線小框 = 兩個子專案；底部實線條 = 兩者共用的底座；框外人形 = 使用者與外部系統。</p>
+
+  <div class="canvas">
+  <svg viewBox="0 0 1200 790" role="img" aria-label="系統邊界圖">
+    <defs>
+      <marker id="ar1" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#B9A9A3"/>
+      </marker>
+      <marker id="ar1a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#8C1220"/>
+      </marker>
+    </defs>
+
+    <!-- 系統邊界 -->
+    <rect class="sys" x="250" y="120" width="700" height="530" rx="16"/>
+    <text class="m" x="272" y="148">系統邊界 · rc-ai-assistant · :8091 · Apache 反代 /ai/</text>
+
+    <!-- 左：問答 -->
+    <rect class="zone" x="278" y="170" width="300" height="252" rx="12"/>
+    <text class="t" x="298" y="198">崑崑問答</text>
+    <text class="m-a" x="298" y="216">SUB-PROJECT A</text>
+    <rect class="bx" x="296" y="232" width="264" height="34" rx="8"/>
+    <text class="d" x="310" y="254">學生頁 <tspan class="m">index.html</tspan></text>
+    <rect class="bx" x="296" y="274" width="264" height="34" rx="8"/>
+    <text class="d" x="310" y="296"><tspan class="m">POST /api/ask</tspan>　學號＋設備號限流</text>
+    <rect class="bx" x="296" y="316" width="264" height="34" rx="8"/>
+    <text class="d" x="310" y="338">BM25 檢索　<tspan class="m">retrieve.py</tspan></text>
+    <text class="d-sm" x="298" y="378">模型鏈：智譜 → DeepSeek → 原文摘錄</text>
+    <text class="d-sm" x="298" y="398">（LLM 在框外，走 HTTPS 出網）</text>
+
+    <!-- 右：資料庫 -->
+    <rect class="zone" x="614" y="170" width="308" height="252" rx="12"/>
+    <text class="t" x="634" y="198">書院資料庫 / 投稿</text>
+    <text class="m-a" x="634" y="216">SUB-PROJECT B</text>
+    <rect class="bx" x="632" y="232" width="272" height="34" rx="8"/>
+    <text class="d" x="646" y="254"><tspan class="m">/library</tspan> 瀏覽　<tspan class="m">/upload</tspan> 投稿</text>
+    <rect class="bx" x="632" y="274" width="272" height="34" rx="8"/>
+    <text class="d" x="646" y="296"><tspan class="m">/review?tab=uploads</tspan> 審核</text>
+    <rect class="bx" x="632" y="316" width="272" height="34" rx="8"/>
+    <text class="d" x="646" y="338"><tspan class="m">/api/library · /api/files</tspan></text>
+    <text class="d-sm" x="634" y="378">上傳檔案存 <tspan class="m">data/uploads/</tspan>，sha256 去重</text>
+    <text class="d-sm" x="634" y="398">MCP <tspan class="m">cklc-files</tspan> 三工具走這條</text>
+
+    <!-- 共用底座 -->
+    <rect class="bx-s" x="278" y="452" width="644" height="92" rx="12"/>
+    <text class="t-sm" x="298" y="478">共用底座</text>
+    <text class="m-a" x="298" y="494">SHARED · 兩個子專案都依賴它</text>
+    <text class="d" x="298" y="516"><tspan class="m">db.py</tspan> 同一個 <tspan class="m">data/kb.sqlite3</tspan>　·　<tspan class="m">auth.py</tspan> REVIEWERS 與學號　·　<tspan class="m">i18n.py</tspan> 繁簡英</text>
+    <text class="d" x="298" y="536">共用不等於共用表：問答讀 <tspan class="m">kb_item</tspan>，資料庫讀 <tspan class="m">library_item</tspan></text>
+
+    <!-- 邊界內底部：離線腳本 -->
+    <rect class="bx-x" x="278" y="682" width="300" height="66" rx="10"/>
+    <text class="t-sm" x="298" y="708">build_kb.py（離線）</text>
+    <text class="d-sm" x="298" y="728">Excel 名冊 → kb_item · chunk</text>
+    <path class="ln-d" d="M428,682 L428,548" marker-end="url(#ar1)"/>
+    <text class="d-sm" x="438" y="600">重建知識庫</text>
+
+    <!-- 外部參與者 -->
+    <rect class="bx" x="60" y="200" width="150" height="64" rx="12"/>
+    <text class="t-sm" x="80" y="226">學生</text>
+    <text class="d-sm" x="80" y="246">問事、看依據</text>
+    <path class="ln" d="M210,232 L276,232" marker-end="url(#ar1)"/>
+
+    <rect class="bx" x="990" y="200" width="150" height="64" rx="12"/>
+    <text class="t-sm" x="1010" y="226">審閱人</text>
+    <text class="d-sm" x="1010" y="246">審條目、審投稿</text>
+    <path class="ln" d="M990,232 L924,232" marker-end="url(#ar1)"/>
+
+    <rect class="bx" x="990" y="430" width="150" height="64" rx="12"/>
+    <text class="t-sm" x="1010" y="456">MCP 客戶端</text>
+    <text class="d-sm" x="1010" y="476">Claude / 其他 agent</text>
+    <path class="ln" d="M990,462 L952,462" marker-end="url(#ar1)"/>
+    <text class="m" x="996" y="516">:8092 /mcp · :8093 /mcp-files</text>
+
+    <rect class="bx" x="60" y="430" width="150" height="64" rx="12"/>
+    <text class="t-sm" x="80" y="456">書院官網</text>
+    <text class="d-sm" x="80" y="476">被動抓取成候選</text>
+    <path class="ln" d="M210,462 L248,462" marker-end="url(#ar1)"/>
+    <text class="m" x="64" y="516">/api/review/scan</text>
+
+    <text class="m" x="60" y="640">框外 = 不由本系統部署與維運</text>
+  </svg>
+  </div>
+
+  <div class="legend">
+    <span><i></i>系統內呼叫</span>
+    <span><i class="d"></i>離線或非同步</span>
+    <span>虛線大框 = 一個部署單元</span>
+  </div>
+
+  <div class="note">
+    <div class="card">
+      <h3>一眼看懂的關係</h3>
+      <p>兩者不是「兩個網站互相呼叫」，而是<b>同一個網站裡的兩組路由</b>。
+      學生一邊問答、一邊逛資料庫；審閱人一邊審問答條目、一邊審投稿檔案，用的是同一套身分。</p>
+    </div>
+    <div class="card">
+      <h3>為什麼要合併部署</h3>
+      <p>主機只有 2 核 4G。合併成一個進程共用一個 SQLite，省掉一份記憶體與一份連線池；
+      代價是兩邊的發布綁在一起，改一邊要重啟整個服務。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 圖 2 ══════════════ -->
+<section class="figure" id="fig2">
+  <div class="fhead"><span class="fnum">圖 02</span><h2>模組依賴圖</h2></div>
+  <p class="fq"><b>這張圖回答：</b>從程式碼看，誰依賴誰？哪條依賴是「共用」，哪條是「耦合」？</p>
+  <p class="how">讀圖方法：箭頭 = 呼叫／引用；粗紅虛線 = 跨子專案唯一的一條線（HTTP 介面）；底部橫條 = 兩個子專案都依賴的底座。</p>
+
+  <div class="canvas">
+  <svg viewBox="0 0 1200 720" role="img" aria-label="模組依賴圖">
+    <defs>
+      <marker id="ar2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#B9A9A3"/>
+      </marker>
+      <marker id="ar2a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#8C1220"/>
+      </marker>
+    </defs>
+
+    <text class="m" x="60" y="42">A · 崑崑問答</text>
+    <text class="m" x="430" y="42">B · 書院資料庫 / 投稿</text>
+
+    <!-- 頁面層 -->
+    <rect class="bx" x="120" y="150" width="210" height="62" rx="10"/>
+    <text class="t-sm" x="138" y="176">index.html</text>
+    <text class="d-sm" x="138" y="196">學生端單頁</text>
+
+    <rect class="bx" x="430" y="150" width="270" height="62" rx="10"/>
+    <text class="m" x="446" y="176">library.html · upload.html · review.html</text>
+    <text class="d-sm" x="446" y="196">瀏覽 / 投稿 / 審核三個頁面</text>
+
+    <!-- 路由層 -->
+    <rect class="bx" x="120" y="258" width="210" height="62" rx="10"/>
+    <text class="t-sm" x="138" y="284">main.py</text>
+    <text class="d-sm" x="138" y="304">/api/ask · /api/stats</text>
+
+    <rect class="bx" x="430" y="258" width="270" height="102" rx="10"/>
+    <text class="m" x="446" y="282">library.py · upload.py · review.py · files.py</text>
+    <text class="d-sm" x="446" y="304">各掛一個 APIRouter，同一個 app</text>
+    <text class="d-sm" x="446" y="326">共用 auth.py 的 REVIEWERS 名單</text>
+
+    <!-- 業務層 -->
+    <rect class="bx" x="120" y="380" width="210" height="56" rx="10"/>
+    <text class="t-sm" x="138" y="404">answer.py</text>
+    <text class="d-sm" x="138" y="422">組答案、標編號、兜底</text>
+
+    <rect class="bx-x" x="430" y="380" width="200" height="56" rx="10"/>
+    <text class="t-sm" x="446" y="404">外部 LLM</text>
+    <text class="d-sm" x="446" y="422">智譜 / DeepSeek</text>
+
+    <rect class="bx" x="120" y="466" width="210" height="56" rx="10"/>
+    <text class="t-sm" x="138" y="490">retrieve.py</text>
+    <text class="d-sm" x="138" y="508">BM25，只查已發布</text>
+
+    <!-- MCP -->
+    <rect class="bx" x="830" y="250" width="200" height="62" rx="10"/>
+    <text class="t-sm" x="846" y="276">mcp_server.py</text>
+    <text class="d-sm" x="846" y="296">cklc · 4 工具（:8092）</text>
+
+    <rect class="bx" x="830" y="336" width="200" height="62" rx="10"/>
+    <text class="t-sm" x="846" y="362">mcp_files_server.py</text>
+    <text class="d-sm" x="846" y="382">cklc-files · 3 工具（:8093）</text>
+
+    <!-- 底座 -->
+    <rect class="bx-s" x="120" y="580" width="910" height="76" rx="12"/>
+    <text class="t-sm" x="140" y="606">共用底座</text>
+    <text class="d" x="140" y="628"><tspan class="m">db.py</tspan>（表結構、<tspan class="m">search_all</tspan>、<tspan class="m">_migrate</tspan>）　·　<tspan class="m">auth.py</tspan>（REVIEWERS / 學號）　·　<tspan class="m">i18n.py</tspan>　·　<tspan class="m">config.py</tspan></text>
+
+    <!-- 連線 -->
+    <path class="ln" d="M225,212 L225,256" marker-end="url(#ar2)"/>
+    <path class="ln" d="M565,212 L565,256" marker-end="url(#ar2)"/>
+    <path class="ln" d="M225,320 L225,378" marker-end="url(#ar2)"/>
+    <path class="ln" d="M225,436 L225,464" marker-end="url(#ar2)"/>
+    <path class="ln" d="M225,522 L225,578" marker-end="url(#ar2)"/>
+    <path class="ln" d="M680,360 L680,578" marker-end="url(#ar2)"/>
+    <text class="d-sm" x="690" y="500"><tspan class="m">db.connect()</tspan> · <tspan class="m">search_all()</tspan></text>
+
+    <!-- answer → LLM -->
+    <path class="ln-d" d="M330,408 L428,408" marker-end="url(#ar2)"/>
+    <text class="d-sm" x="336" y="398">HTTPS</text>
+
+    <!-- MCP → 路由（唯一跨子專案） -->
+    <path class="ln-a" d="M830,281 L702,281" marker-end="url(#ar2a)"/>
+    <path class="ln-a" d="M830,367 L770,367 L770,340 L702,340" marker-end="url(#ar2a)"/>
+    <text class="m-a" x="830" y="426">HTTP 呼叫 /api/search，不直連 DB</text>
+    <text class="d-sm" x="120" y="678">兩者互不 import；MCP 也不 import 任何業務模組</text>
+
+    <text class="m" x="60" y="700">箭頭 = import / 呼叫；紅線 = 跨子專案唯一介面；虛線框 = 外部</text>
+  </svg>
+  </div>
+
+  <div class="legend">
+    <span><i></i>import / 直接呼叫</span>
+    <span><i class="a"></i>跨子專案（HTTP）</span>
+    <span>底座被 A、B 同時 import</span>
+  </div>
+
+  <div class="note">
+    <div class="card">
+      <h3>A 與 B 之間沒有 import</h3>
+      <p><code>review.py</code> 與 <code>answer.py</code> 互不引用。唯一的橋是 HTTP：
+      MCP 服務用 <code>urllib</code> 打 <code>/api/search</code>，而不是把 <code>db.py</code> 拉進來。</p>
+    </div>
+    <div class="card">
+      <h3>底座是共用而非繼承</h3>
+      <p>兩邊都 import <code>db.py</code>，但用的是不同函式：A 走 <code>search()</code>，
+      B 走 <code>library_items()</code>、<code>search_all()</code>。共用連線與表結構，不共用業務邏輯。</p>
+    </div>
+  </div>
+</section>
+
+<!-- ══════════════ 圖 3 ══════════════ -->
+<section class="figure" id="fig3">
+  <div class="fhead"><span class="fnum">圖 03</span><h2>資料流圖</h2></div>
+  <p class="fq"><b>這張圖回答：</b>一條資料從哪裡進來、經過什麼、最後給誰看？兩條鏈在什麼地方匯合，又在什麼地方不匯合？</p>
+  <p class="how">讀圖方法：上行 = 問答知識庫（離線重建），下行 = 資料庫（線上投稿與抓取）。兩條泳道各自閉環，只在最底部兩個出口匯合。</p>
+
+  <div class="canvas">
+  <svg viewBox="0 0 1200 720" role="img" aria-label="資料流圖">
+    <defs>
+      <marker id="ar3" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#B9A9A3"/>
+      </marker>
+      <marker id="ar3a" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+        <path d="M0,0 L10,5 L0,10 z" fill="#8C1220"/>
+      </marker>
+    </defs>
+
+    <!-- 泳道標籤 -->
+    <text class="m" x="60" y="96">A · 問答知識庫（離線重建）</text>
+    <text class="m" x="60" y="356">B · 資料庫（線上投稿與抓取）</text>
+    <line x1="60" y1="112" x2="1140" y2="112" stroke="rgba(140,18,32,.14)"/>
+    <line x1="60" y1="372" x2="1140" y2="372" stroke="rgba(140,18,32,.14)"/>
+
+    <!-- A 鏈 -->
+    <rect class="bx-x" x="60" y="132" width="180" height="86" rx="10"/>
+    <text class="t-sm" x="76" y="158">Excel 名冊</text>
+    <text class="d-sm" x="76" y="178">RC_中文正常版</text>
+    <text class="d-sm" x="76" y="196">人工整理的問題集</text>
+
+    <rect class="bx" x="285" y="132" width="180" height="86" rx="10"/>
+    <text class="t-sm" x="301" y="158">build_kb.py</text>
+    <text class="d-sm" x="301" y="178">清洗、套 overrides</text>
+    <text class="d-sm" x="301" y="196">寫入 kb_item / chunk</text>
+
+    <rect class="bx-a" x="510" y="132" width="180" height="86" rx="10"/>
+    <text class="t-sm" x="526" y="158">kb_item · chunk</text>
+    <text class="d-sm" x="526" y="178">status = published</text>
+    <text class="d-sm" x="526" y="196">uid · revision · hash</text>
+
+    <rect class="bx" x="735" y="132" width="180" height="86" rx="10"/>
+    <text class="t-sm" x="751" y="158">BM25 檢索</text>
+    <text class="d-sm" x="751" y="178">retrieve.py</text>
+    <text class="d-sm" x="751" y="196">只吃已發布、未過期</text>
+
+    <rect class="bx" x="960" y="132" width="180" height="86" rx="10"/>
+    <text class="t-sm" x="976" y="158">/api/ask</text>
+    <text class="d-sm" x="976" y="178">答案 + [n] 編號</text>
+    <text class="d-sm" x="976" y="196">→ 學生頁氣泡</text>
+
+    <path class="ln-d" d="M240,175 L283,175" marker-end="url(#ar3)"/>
+    <path class="ln-d" d="M465,175 L508,175" marker-end="url(#ar3)"/>
+    <path class="ln" d="M690,175 L733,175" marker-end="url(#ar3)"/>
+    <path class="ln" d="M915,175 L958,175" marker-end="url(#ar3)"/>
+
+    <!-- B 鏈 -->
+    <rect class="bx" x="60" y="392" width="180" height="86" rx="10"/>
+    <text class="t-sm" x="76" y="418">投稿 / 抓取</text>
+    <text class="d-sm" x="76" y="438">/upload 上傳</text>
+    <text class="d-sm" x="76" y="456">官網掃描 review/scan</text>
+
+    <rect class="bx" x="285" y="392" width="180" height="86" rx="10"/>
+    <text class="t-sm" x="301" y="418">candidate</text>
+    <text class="d-sm" x="301" y="438">候選草稿</text>
+    <text class="d-sm" x="301" y="456">待人工判斷</text>
+
+    <rect class="bx" x="510" y="392" width="180" height="86" rx="10"/>
+    <text class="t-sm" x="526" y="418">審核 /review</text>
+    <text class="d-sm" x="526" y="438">認領鎖 30 分鐘</text>
+    <text class="d-sm" x="526" y="456">通過 / 退回 / 編輯</text>
+
+    <rect class="bx-a" x="735" y="392" width="180" height="86" rx="10"/>
+    <text class="t-sm" x="751" y="418">library_item</text>
+    <text class="d-sm" x="751" y="438">status = published</text>
+    <text class="d-sm" x="751" y="456">work / link / doc</text>
+
+    <rect class="bx" x="960" y="392" width="180" height="86" rx="10"/>
+    <text class="t-sm" x="976" y="418">/api/library</text>
+    <text class="d-sm" x="976" y="438">/api/files · /library</text>
+    <text class="d-sm" x="976" y="456">→ 瀏覽者 / MCP</text>
+
+    <path class="ln" d="M240,435 L283,435" marker-end="url(#ar3)"/>
+    <path class="ln" d="M465,435 L508,435" marker-end="url(#ar3)"/>
+    <path class="ln" d="M690,435 L733,435" marker-end="url(#ar3)"/>
+    <path class="ln" d="M915,435 L958,435" marker-end="url(#ar3)"/>
+
+    <!-- 匯合 -->
+    <rect class="bx-s" x="60" y="556" width="1080" height="104" rx="12"/>
+    <text class="t-sm" x="80" y="582">唯一的匯合點</text>
+    <text class="d" x="80" y="604"><tspan class="m">/api/search</tspan>（MCP <tspan class="m">cklc</tspan> 用它）與 <tspan class="m">/api/updates</tspan> 會同時查兩張表，回傳帶 <tspan class="m">type</tspan> 的混合結果：<tspan class="m">qa / work / link / doc</tspan></text>
+    <text class="d" x="80" y="626">問答那一側的檢索<b>完全不讀</b> <tspan class="m">library_item</tspan>；資料庫條目也不會被 BM25 當成答案依據。分開是設計，不是遺漏。</text>
+    <text class="m-a" x="80" y="646">匯合是「查詢層」的匯合，不是「資料層」的打通</text>
+
+    <path class="ln-a" d="M600,220 L600,390" marker-end="url(#ar3a)" stroke-dasharray="4 5"/>
+    <text class="d-sm" x="610" y="300">兩張表各自獨立</text>
+    <text class="d-sm" x="610" y="316">沒有外鍵、沒有同步</text>
+  </svg>
+  </div>
+
+  <div class="legend">
+    <span><i></i>線上即時</span>
+    <span><i class="d"></i>離線腳本</span>
+    <span>粗框 = 兩條鏈各自的「已發布」閘門</span>
+  </div>
+
+  <div class="note">
+    <div class="card">
+      <h3>共同點：都有一道 published 閘門</h3>
+      <p>兩邊都是「先落地、再審核、發布後才對外」。問答審的是條目與條款，
+      資料庫審的是院生投稿。檢索層都只讀 <code>status='published'</code>，草稿永遠搜不到。</p>
+    </div>
+    <div class="card">
+      <h3>不同點：更新節奏</h3>
+      <p>問答靠 Excel 全量重建（離線、可控）；資料庫靠投稿與抓取，隨時增長。
+      所以問答用 <code>ttl_type</code> 管有效期，資料庫用 <code>reviewed_at</code> 管新鮮度。</p>
+    </div>
+  </div>
+</section>
+
+<footer class="end">
+  證據來源：<code>app/main.py</code> 路由器註冊 · <code>app/db.py</code> 建表與 <code>search_all()</code> ·
+  <code>app/retrieve.py</code>（不引用 library）· <code>app/library.py</code> <code>/api/updates</code> ·
+  <code>mcp_server.py</code>（走 HTTP）· systemd 三個單元 8091 / 8092 / 8093。
+  圖中未出現的元件，程式碼裡確實沒有；本圖不做推測性擴充。
+</footer>
+
+</div>
+</body>
+</html>
