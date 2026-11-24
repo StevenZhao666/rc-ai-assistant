@@ -110,6 +110,8 @@ def main() -> int:
     print(f"{'预览' if a.dry_run else '导入'}：{len(files)} 个文件，version={a.version}")
     for f in files:
         total += ingest(f, a.version, a.source or None, a.dry_run)
+    if not a.dry_run:
+        print(f"FTS 索引已重建：{db.rebuild_chunk_fts()} 条")
     print(f"\n合计 {total} 段" + ("（未写入）" if a.dry_run else " 已写入 chunk 表"))
     return 0
 

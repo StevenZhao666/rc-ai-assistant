@@ -11,13 +11,14 @@ http://159.75.225.125/ai/mcp-files    ← 资料库文件（cklc-files）
 
 传输方式：**Streamable HTTP**（不是 SSE，不是 stdio）。
 
-## 能做什么（四个工具）
+## 能做什么（五个工具）
 
 | 工具 | 用途 | 例子 |
 |---|---|---|
 | `search_kb` | 搜问答 + 资料库 | 「書院能不能養寵物」 |
 | `get_item` | 按编号取一条（问答或作品） | `item_id=9, type=qa` |
 | `get_clause` | 按条款号取规章原文 | `anchor=3.2` |
+| `search_clauses` | 按关键词全文搜条款（FTS5） | 「訪客 過夜」 |
 | `list_updates` | 最近改了什么 | `since=2026-11-01` |
 
 返回里带 `uid`（如 `kb-0009`）和 `revision`，可核对是哪一版。

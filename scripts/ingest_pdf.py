@@ -151,6 +151,7 @@ def main() -> None:
     print(f"文件：{path.name}（{path.stat().st_size // 1024} KB）")
     print(f"切出条款：{len(clauses)} 条（删除旧 {deleted} / 新增 {added} / 更新 {updated}）")
     print(f"chunk 表共 {total} 条")
+    print(f"FTS 索引已重建：{db.rebuild_chunk_fts()} 条")
     for c in clauses[:3]:
         print(f"  [{c['anchor']}] {c['text'][:60]}")
 

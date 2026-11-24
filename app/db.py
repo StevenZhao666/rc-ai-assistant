@@ -21,6 +21,9 @@ except Exception:                # noqa: BLE001
     _CC = None
 
 SCHEMA = """
+CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(
+    uid UNINDEXED, anchor UNINDEXED, version UNINDEXED, source UNINDEXED, body);
+
 CREATE TABLE IF NOT EXISTS kb_item (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     question    TEXT NOT NULL,
@@ -163,6 +166,20 @@ def init_db() -> None:
     with connect(write=True) as conn:
         conn.executescript(SCHEMA)
         _migrate(conn)
+        # FTS 空了但有条款 → 回灌（首次部署/重建索引）
+        try:
+            if (conn.execute("SELECT COUNT(*) FROM chunk_fts").fetchone()[0] == 0
+                    and conn.execute("SELECT COUNT(*) FROM chunk WHERE status='published'").fetchone()[0] > 0):
+                rows = conn.execute(
+                    "SELECT uid, anchor, version, source, title, text FROM chunk WHERE status='published'"
+                ).fetchall()
+                conn.executemany(
+                    "INSERT INTO chunk_fts (uid, anchor, version, source, body) VALUES (?,?,?,?,?)",
+                    [(r["uid"], r["anchor"], r["version"], r["source"],
+                      _bigrams(f"{r['title'] or ''} {r['text'] or ''}")) for r in rows])
+                print(f"[fts] 回灌 {len(rows)} 条")
+        except sqlite3.OperationalError as e:
+            print(f"[warn] FTS 回灌失败：{e}")
         conn.commit()
 
 
@@ -351,7 +368,13 @@ def _tokens(text: str) -> set[str]:
 
 
 def related_chunks(question: str, answer: str = "", limit: int = 3, min_score: float = 0.0) -> list[dict]:
-    """按词面重合找最相关的规章原文段落，给审核对照用。"""
+    """按词面重合找最相关的规章原文段落，给审核对照用。先走 FTS5，没命中再退回打分。"""
+    try:
+        fts = search_chunks(f"{question} {answer}", limit=limit)
+        if fts:
+            return fts
+    except Exception:
+        pass
     q = (_tokens(question) | _tokens(answer)) - _STOP
     # 中文问句补上英文关键词，才能对上英文条款
     strong: set[str] = set()
@@ -662,6 +685,14 @@ def llm_tokens_today() -> int:
     return total
 
 
+def archive_library_item(item_id: int, reviewer: str = "") -> bool:
+    with connect(write=True) as conn:
+        cur = conn.execute("UPDATE library_item SET status='archived', reviewer=? WHERE id=?",
+                           (reviewer or None, item_id))
+        conn.commit()
+        return cur.rowcount > 0
+
+
 def _files_of(ids: list[int]) -> list[dict]:
     if not ids:
         return []
@@ -698,6 +729,18 @@ def bump_kb_revision(conn, item_id: int, changed_by: str = "", note: str = "") -
          datetime.now().isoformat(timespec="seconds"), note))
     conn.execute("UPDATE kb_item SET revision=?, content_hash=? WHERE id=?",
                  (rev + 1, new_hash, item_id))
+
+
+def _bigrams(text: str) -> str:
+    """中文切成重叠二元组，英文/数字保留整词；结果用空格分隔，喂给 FTS5。"""
+    t = (text or "").lower()
+    out: list[str] = []
+    for run in re.findall(r"[一-鿿]+", t):
+        if len(run) == 1:
+            out.append(run)
+        out += [run[i:i + 2] for i in range(len(run) - 1)]
+    out += re.findall(r"[a-z0-9]{2,}", t)
+    return " ".join(out)
 
 
 def _norm(s: str) -> str:
@@ -956,3 +999,45 @@ def decide_item(item_id: int, action: str, reviewer: str, note: str = "",
     after = update_item(item_id, fields)
     log_review(item_id, action, reviewer, note, before=item, after=after)
     return True, "ok", after
+
+
+# ── FTS5：条款全文检索（自建二元组分词，解决中文 2 字词） ─────────────────────
+def rebuild_chunk_fts() -> int:
+    """把已发布条款重灌进 chunk_fts；导入新条款后要调一次。"""
+    with connect(write=True) as conn:
+        conn.execute("""CREATE VIRTUAL TABLE IF NOT EXISTS chunk_fts USING fts5(
+            uid UNINDEXED, anchor UNINDEXED, version UNINDEXED, source UNINDEXED, body)""")
+        conn.execute("DELETE FROM chunk_fts")
+        rows = conn.execute(
+            "SELECT uid, anchor, version, source, title, text FROM chunk WHERE status='published'"
+        ).fetchall()
+        conn.executemany(
+            "INSERT INTO chunk_fts (uid, anchor, version, source, body) VALUES (?,?,?,?,?)",
+            [(r["uid"], r["anchor"], r["version"], r["source"],
+              _bigrams(f"{r['title'] or ''} {r['text'] or ''}")) for r in rows])
+        conn.commit()
+        return len(rows)
+
+
+def search_chunks(q: str, limit: int = 5) -> list[dict]:
+    """条款全文检索：二元组 MATCH + bm25 排序。"""
+    toks = _bigrams(q)
+    if not toks.strip():
+        return []
+    parts = toks.split()
+    sql = ("SELECT f.uid, f.anchor, f.version, f.source, c.text, c.title, bm25(chunk_fts) AS rank"
+           " FROM chunk_fts f JOIN chunk c ON c.uid = f.uid"
+           " WHERE chunk_fts MATCH ? ORDER BY rank LIMIT ?")
+    rows = []
+    with connect() as conn:
+        conn.row_factory = sqlite3.Row
+        # 先 AND（准），没有再 OR（全）——中文换词很常见，纯 AND 会漏
+        for expr in (" AND ".join(parts), " OR ".join(parts)):
+            try:
+                rows = conn.execute(sql, (expr, limit)).fetchall()
+            except sqlite3.OperationalError:
+                rows = []
+            if rows:
+                break
+    return [{"uid": r["uid"], "anchor": r["anchor"], "version": r["version"], "source": r["source"],
+             "text": r["text"], "title": r["title"], "score": round(-r["rank"], 2)} for r in rows]

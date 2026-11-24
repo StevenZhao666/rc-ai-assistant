@@ -147,6 +147,15 @@ class BindIn(BaseModel):
     chunk_id: int | None = None
 
 
+@router.post("/api/review/library/{item_id}/archive")
+def archive_library(item_id: int, request: Request) -> dict:
+    """下架资料库条目（不动问答库）。"""
+    who = _reviewer(request)
+    if not db.archive_library_item(item_id, who):
+        raise HTTPException(404, "条目不存在")
+    return {"ok": True, "id": item_id, "status": "archived"}
+
+
 @router.post("/api/review/item/{item_id}/bind")
 def bind(item_id: int, body: BindIn, request: Request) -> dict:
     who = _reviewer(request)

@@ -50,6 +50,15 @@ def qa_one(item_id: int) -> dict:
     return {"item": dict(r)}
 
 
+@router.get("/api/clauses")
+def clauses_search(q: str = "", limit: int = Query(5, ge=1, le=20)) -> dict:
+    """条款全文检索（FTS5 二元组），返回条款号 + 原文。"""
+    if not q.strip():
+        raise HTTPException(400, "需要 q")
+    rows = db.search_chunks(q, limit=limit)
+    return {"q": q, "total": len(rows), "items": rows}
+
+
 @router.get("/api/clause")
 def clause(anchor: str = "", version: str = "") -> dict:
     """按条款号取原文（同号多章节时全部返回，前端/客户端自己选）。"""

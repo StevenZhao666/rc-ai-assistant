@@ -52,6 +52,12 @@ def get_item(item_id: int, type: str = "qa") -> dict:
     return _get(f"/api/library/{int(item_id)}")
 
 
+@mcp.tool(description="按关键词搜规章条款原文（全文检索，返回条款号与原文）。")
+def search_clauses(query: str, limit: int = 5) -> dict:
+    q = urllib.parse.quote(query or "")
+    return _get(f"/api/clauses?q={q}&limit={max(1, min(limit, 20))}")
+
+
 @mcp.tool(description="按条款号取规章原文，例如 anchor=3.2。可带 version=AY2026-2027。")
 def get_clause(anchor: str, version: str = "") -> dict:
     q = urllib.parse.quote(anchor)
